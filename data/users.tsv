@@ -1,0 +1,4 @@
+"username_id" "password" "permission"
+"1" "admin" "$7$C6..../....yHJO4N1r7aipn3ITgRnB2IjxmAeUkk5MrySE/qFPhGA$5HJPlZSYg6VxXVorMjkAc5vV23jIIQm3ng5HzArtMz7" "admin"
+"2" "user1" "$7$C6..../....lKWvkVpZ2wM1hAfJQlEpHDgm77pvoO.37pivDUb2132$/ePOAdG1uW0I3em/P1gsHQXUmodEfFujcl/8gMQtSr/" "standard"
+"3" "user2" "$7$C6..../....PvO/F9PifHg.eVt7p00XJBX8K.8f0a8tTd9gxItHUc5$D/okuf/K2LcVYUdEJJhI//XbzUPZ843.HlI3EM/9Bk6" "standard"
