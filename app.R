@@ -63,9 +63,9 @@ loginpage <- div(id = "loginpage", style = "width: 500px; max-width: 100%; margi
 
 
 #UI
-header <- dashboardHeader( title = "Summaries Validation", uiOutput("logoutbtn"))
+header <- dashboardHeader( title = "Validación de resúmenes", titleWidth = 250, uiOutput("logoutbtn"))
 
-sidebar <- dashboardSidebar(uiOutput("sidebarpanel")) 
+sidebar <- dashboardSidebar(width = 250,uiOutput("sidebarpanel")) 
 
 body <- dashboardBody(shinyjs::useShinyjs(), uiOutput("body"))
 
@@ -120,9 +120,9 @@ server <- function(input, output, session) {
   output$sidebarpanel <- renderUI({
     if (USER$login == TRUE){
       sidebarMenu(
-        if(typeUser() == "expert"){
+        if(typeUser() != "admin"){ #== "expert" comparo contra admin en caso de crear el super-expert
           #menuItem("Dashboard", tabName = "dashboard", icon = icon("tachometer-alt",lib = "font-awesome")),
-          menuItem("Validate", tabName = "validate", icon = icon("th",lib = "font-awesome"))
+          menuItem("Validar resumen", tabName = "validate", icon = icon("th",lib = "font-awesome"))
           }
         else{
           menuItem("Dashboard", tabName = "dashboard", icon = icon("tachometer-alt",lib = "font-awesome"))
@@ -134,19 +134,43 @@ server <- function(input, output, session) {
   output$body <- renderUI({
     if (USER$login == TRUE) {
       tabItems(
-        
-        if(typeUser() == "expert"){
+        # comparaba contra expert pero tal vez cree usuario de tipo super-expert para cuando no hay acuerdo entre experts normales
+        if(typeUser() != "admin"){
           tabItem(tabName = "validate", class = "active",
                   fluidRow(
-                    selectInput("selectTitle",label=("Select a text to validate"),choices = choicesSummVal),
-                    #box(width = 12, verbatimTextOutput('title')),
-                    # box(width = 12, textOutput('body')),
-                    # box(width = 12, textOutput('summary')),
-                    tableOutput('contents'),
-                    selectInput("selectError", label = h3("Select type of error"), 
-                                choices = list("No error" = 0, "Error 1" = 1, "Error 2" = 2, "Error 3" = 3), 
-                                selected = 0),
-                    actionButton('validateButton',"Send")
+                    box(width=4, title="Título", status = "primary", solidHeader = TRUE, collapsible = FALSE,
+                        selectInput("selectTitle",label=("Seleccione el artículo a validar"),choices = choicesSummVal))
+                  ),
+                  
+                  fluidRow(
+                    box(width=12, title="Artículo y resumen",status = "primary", solidHeader = TRUE, collapsible = TRUE,
+                        tableOutput('contents'),
+                    # selectInput("selectError", label = h3("Select type of error"), 
+                    #             choices = list("No error" = 0, "Error 1" = 1, "Error 2" = 2, "Error 3" = 3), 
+                    #             selected = 0),
+                    br())
+                  ), 
+                  
+                  fluidRow(
+                    box(width=12, title="Validación del resumen",status = "primary", solidHeader = TRUE, collapsible = FALSE,
+                      #p("Una vez leído el artículo y el resumen, indique si las siguientes afirmaciones son Verdaderas o Falsas"),
+                      br(),
+                      radioButtons("question1", label = ("El resumen trasmite el contenido del texto."),
+                                 choices = list("Verdadero" = 1, "Falso" = 2), 
+                                 selected = 2),
+                      conditionalPanel(
+                        condition = "input.question1 == 1",
+                        radioButtons("question2", label = ("El resumen contiene informatión que no es coherente con el artículo."),
+                                     choices = list("Verdadero" = 1, "Falso" = 2),  
+                                     selected = 2),
+                        # conditionalPanel(
+                        #condition = "input.question2 == 1",
+                        radioButtons("question3", label = ("El resumen contiene información que no puede deducirse del artículo."),
+                                     choices = list("Verdadero" = 1, "Falso" = 2), 
+                                     selected = 2)
+                        #)
+                      ),
+                      actionButton('validateButton',"Validar Resumen"))
                   )
           )          
         }
@@ -170,45 +194,19 @@ server <- function(input, output, session) {
   })
 
 
+  #Filter the text from the title input to show the expert body and summary
   filteredText<- reactive ({
-    text %>% select(title,body,summary) %>% filter(title %in% input$selectTitle)
+    text %>% select(title,body,summary) %>% filter(title %in% input$selectTitle) %>% select(body,summary)
+    
   })
   
   output$contents <- renderTable(
     filteredText()
   )
   
-  # filteredTitle <- reactive ({
-  #   text %>% select(title) %>% filter(title %in% input$selectTitle) 
-  # })
-  # output$title<- renderPrint({
-  #   filteredTitle()
-  # })
-  
-  # filteredBody<- reactive ({
-  #   text %>% filter(title %in% input$selectTitle) %>% select(body)
-  # })
-  # output$body <- renderText({
-  #   filteredBody()
-  # })  
-
-  # filteredSummary <- reactive ({
-  #   text %>% filter(title %in% input$selectTitle) %>% select(summary)
-  # })
-  # output$summary <- renderText({
-  #   filteredSummary()
-  # })
-# 
-#   validationData <- reactive({
-#     data <- sapply(fields, function(x) input[[x]])
-#     data <- c(data, timestamp = epochTime())
-#     #data <- t(data)
-#     data
-#   })
-#   
-#   observeEvent(input$validateButton,{
-#     saveData(validationData())
-#   })
+  observeEvent(input$question1,{
+    
+  })
   
 }
 
