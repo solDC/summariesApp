@@ -117,73 +117,95 @@ server <- function(input, output, session) {
 
   output$sidebarpanel <- renderUI({
     if (USER$login == TRUE){
-      sidebarMenu(
-        if(typeUser() != "admin"){ #== "expert" comparo contra admin en caso de crear el super-expert
-          #menuItem("Dashboard", tabName = "dashboard", icon = icon("tachometer-alt",lib = "font-awesome")),
+      #comparo contra admin en caso de crear el super-expert
+      if(typeUser() != "admin"){ 
+        sidebarMenu(
+          menuItem("Information", tabName = "information", icon = icon("fas fa-info")),
           menuItem("Validar resumen", tabName = "validate", icon = icon("th",lib = "font-awesome"))
-          }
-        else{
+        )
+      }
+      else{
+        sidebarMenu(
           menuItem("Dashboard", tabName = "dashboard", icon = icon("tachometer-alt",lib = "font-awesome"))
-          }
-      )
+        )
+      }
     }
   })
 
   output$body <- renderUI({
     if (USER$login == TRUE) {
-      tabItems(
-        # comparaba contra expert pero tal vez cree usuario de tipo super-expert para cuando no hay acuerdo entre experts normales
-        if(typeUser() != "admin"){
+      if(typeUser() != "admin"){
+        
+        tabItems(
+          
+          #comparaba contra expert pero tal vez cree usuario de tipo super-expert para cuando no hay acuerdo entre experts normales
+          tabItem(tabName = "information", 
+                    h4("Acá voy a poner un texto donde se explica el objetivo de la herramienta, el dataset utilizado y el problema con el resumen objectivo del dataset que 
+                         a veces viene con datos que no se pueden inferir del texto y no sé si hace falta algo más.")),
+          
           tabItem(tabName = "validate", class = "active",
                   fluidRow(
-                    box(width=12, title="Título", status = "primary", solidHeader = TRUE, collapsible = FALSE,
-                        selectInput("selectTitle",
+                    box(
+                      width=12, title="Título", status = "primary", solidHeader = TRUE, collapsible = FALSE,
+                      selectInput("selectTitle",
                                     label=("Seleccione el artículo a validar"),
                                     choices = articles$title)) #choices = choicesSummVal
                   ),
                   
                   fluidRow(
-                    box(width=12, title="Texto del artículo",status = "primary", solidHeader = TRUE, collapsible = TRUE,
-                        uiOutput('articleURL'),
-                        br(),
-                        textOutput('text'))
+                    box(
+                      width=12, title="Texto del artículo",status = "primary", solidHeader = TRUE, collapsible = TRUE,collapsed = TRUE,
+                      uiOutput('articleURL'),
+                      br(),
+                      textOutput('text'))
                   ), 
                   
                   fluidRow(
-                    box(width=12, title="Resumen",status = "primary", solidHeader = TRUE, collapsible = TRUE,
-                        textOutput('summary'))
-                  ),                   
+                    box(
+                      width=6, title="Resumen objetivo",status = "primary", solidHeader = TRUE, collapsible = TRUE,
+                      textOutput('objectiveSummary')),
+                    box(
+                      width=6, title="Resumen generado automáticamente",status = "danger", solidHeader = TRUE, collapsible = TRUE,
+                      textOutput('generatedSummary'))
+                  ), 
+                  
                   fluidRow(
-                    box(width=12, title="Validación del resumen",status = "primary", solidHeader = TRUE, collapsible = FALSE,
-                      HTML("<p>Una vez leído el artículo y el resumen, por favor indique si la(s) siguiente(s) afirmaciones son Verdaderas o Falsas:</p>"),
+                    box(
+                      width=12, title="Validación del resumen", status = "primary", solidHeader = TRUE, collapsible = FALSE,
+                      h4("Una vez leído el artículo, el resumen objetivo y el resumen generado automáticamente, por favor indique si las siguientes afirmaciones son verdaderas o falsas."),
                       br(),
-                      radioButtons("question1", label = ("El resumen trasmite el contenido del texto."),
+                      radioButtons("question1", label = ("El resumen trasmite la idea general del texto y es comparable al resumen realizado por un humano."),
                                  choices = list("Verdadero" = 1, "Falso" = 2), 
                                  selected = 2),
-                      conditionalPanel(
-                        condition = "input.question1 == 1",
-                        radioButtons("question2", label = ("El resumen contiene informatión que no es coherente con el artículo."),
+                        #condition = "input.question1 == 1",
+                        radioButtons("question2", label = ("El resumen contiene algún error."),
                                      choices = list("Verdadero" = 1, "Falso" = 2),  
                                      selected = 2),
-                        # conditionalPanel(
-                        #condition = "input.question2 == 1",
-                        radioButtons("question3", label = ("El resumen contiene información que no puede deducirse del artículo."),
-                                     choices = list("Verdadero" = 1, "Falso" = 2), 
-                                     selected = 2)
-                        #)
+                        conditionalPanel(
+                        condition = "input.question2 == 1",
+                        selectInput("selectError", label = ("Select type of error"), 
+                                    choices = list( "Entiende mal todo el texto " = 1, "Entiende mal cierta parte del texto " = 2, 
+                                                    "Agrega información que no está en el texto" = 3, 
+                                                    "La sintaxis de la oración introduce errores semánticos" = 4, "Otro" = 5), 
+                                    selected = 1),
+                        conditionalPanel(
+                          condition = "input.selectError == 5",
+                          textInput("text", label = ("Descripción del error que contiene el resumen"), value = "Explique el error...")
+                        )
                       ),
                       actionButton('validateButton',"Validar Resumen"))
-                  )
-          )          
-        }
+                  ) #última fluidRow
+           ) #tabItem validate  
+        )# tabItems
+        }#fin if si el usuario es el expert
         else{
-          tabItem(tabName ="dashboard", class = "active",
-                  fluidRow(
-                    box(width = 12, dataTableOutput('results'))
-                  ))          
-        }
-    )
-      
+          tabItems(
+            tabItem(tabName ="dashboard", class = "active",
+                    fluidRow(
+                      box(width = 12, dataTableOutput('results'))
+                    ))   
+          )
+        } #fin if si el usuario es el administrador
   }
   else {
     loginpage
@@ -196,25 +218,24 @@ server <- function(input, output, session) {
   })
 
   selectedArticleData <- reactive ({
-    articles %>% select(id,title,url) %>% filter(title %in% input$selectTitle)
+    articles %>% select(id,title,summary,url) %>% filter(title %in% input$selectTitle)
   })
 
-  #Filter the text from the title input to show the expert the body of the summary
   filteredText<- reactive ({
     unlist(articles %>% select(title,text) %>% filter(title %in% input$selectTitle) %>% select(text))
   })
+  
+  filteredObjectiveSummary<- reactive ({
+    unlist(articles %>% select(title,summary) %>% filter(title %in% input$selectTitle) %>% select(summary))
+  })
 
-  #Filter the text from the title input to show the expert the body of the summary
-  filteredSummary<- reactive ({
+  filteredGeneratedSummary<- reactive ({
     unlist(summaries %>% select(title,summary) %>% filter(title %in% input$selectTitle) %>% select(summary))
   })
   
-  # output$contents <- renderTable(
-  #   filteredText()
-  # )
-
   output$text <- renderText(filteredText())
-  output$summary <- renderText(filteredSummary())
+  output$objectiveSummary <- renderText(filteredObjectiveSummary())
+  output$generatedSummary <- renderText(filteredGeneratedSummary())
   output$articleURL <- renderUI(HTML(paste0("<p><b>Para una mejor experiencia de lectura, visite: </b><a href=",selectedArticleData()$url,' target="_blank">',selectedArticleData()$url,"</a></p>"))) 
 }
 
