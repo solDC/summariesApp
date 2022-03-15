@@ -6,9 +6,9 @@ library(shinyjs)
 library(sodium) #para encriptar contraseñas
 library(tidyverse)
 library(dplyr)
-library(digest)
+#library(digest)
 
-source("~/shinyapp/summariesApp/aux.R")
+#source("~/shinyapp/summariesApp/aux.R")
 
 # #global variables
 # fields <- c("user","title","error")
@@ -17,19 +17,17 @@ source("~/shinyapp/summariesApp/aux.R")
 #   as.integer(Sys.time())
 # }
 
-
+setwd("~/shinyApp/summariesApp/")
 credentials <- read.csv(file="data/users.csv")
 
-#Ahora el texto y los resumenes están en un solo fichero, hay que ver como vienen
-text <- read.csv("data/summaries.csv")
-#text$title <- as.factor(text$title)
-str(text)
+articles <- read.csv("data/articles.csv") #test dataset XL-Sum
+summaries <- read.csv("data/summaries2.csv")
 
 
 #Titulos de textos que hay que validar porque tienen menos de 3 validacions --> 
 # esto tiene que cambiar porque 3 es variable parametrica y sino hay acuerdo necesitamos más checks de expertos
-numChoicesSummVal <- text %>% filter(numValid < 3) %>%  count()
-choicesSummVal <- text %>% filter(numValid < 3)  %>% select(title) 
+# numChoicesSummVal <- text %>% filter(numValid < 3) %>%  count()
+# choicesSummVal <- text %>% filter(numValid < 3)  %>% select(title) 
 
 
 # Main login screen
@@ -138,22 +136,26 @@ server <- function(input, output, session) {
         if(typeUser() != "admin"){
           tabItem(tabName = "validate", class = "active",
                   fluidRow(
-                    box(width=4, title="Título", status = "primary", solidHeader = TRUE, collapsible = FALSE,
-                        selectInput("selectTitle",label=("Seleccione el artículo a validar"),choices = choicesSummVal))
+                    box(width=12, title="Título", status = "primary", solidHeader = TRUE, collapsible = FALSE,
+                        selectInput("selectTitle",
+                                    label=("Seleccione el artículo a validar"),
+                                    choices = articles$title)) #choices = choicesSummVal
                   ),
                   
                   fluidRow(
-                    box(width=12, title="Artículo y resumen",status = "primary", solidHeader = TRUE, collapsible = TRUE,
-                        tableOutput('contents'),
-                    # selectInput("selectError", label = h3("Select type of error"), 
-                    #             choices = list("No error" = 0, "Error 1" = 1, "Error 2" = 2, "Error 3" = 3), 
-                    #             selected = 0),
-                    br())
+                    box(width=12, title="Texto del artículo",status = "primary", solidHeader = TRUE, collapsible = TRUE,
+                        uiOutput('articleURL'),
+                        br(),
+                        textOutput('text'))
                   ), 
                   
                   fluidRow(
+                    box(width=12, title="Resumen",status = "primary", solidHeader = TRUE, collapsible = TRUE,
+                        textOutput('summary'))
+                  ),                   
+                  fluidRow(
                     box(width=12, title="Validación del resumen",status = "primary", solidHeader = TRUE, collapsible = FALSE,
-                      #p("Una vez leído el artículo y el resumen, indique si las siguientes afirmaciones son Verdaderas o Falsas"),
+                      HTML("<p>Una vez leído el artículo y el resumen, por favor indique si la(s) siguiente(s) afirmaciones son Verdaderas o Falsas:</p>"),
                       br(),
                       radioButtons("question1", label = ("El resumen trasmite el contenido del texto."),
                                  choices = list("Verdadero" = 1, "Falso" = 2), 
@@ -193,21 +195,27 @@ server <- function(input, output, session) {
                                    searching = FALSE))
   })
 
+  selectedArticleData <- reactive ({
+    articles %>% select(id,title,url) %>% filter(title %in% input$selectTitle)
+  })
 
-  #Filter the text from the title input to show the expert body and summary
+  #Filter the text from the title input to show the expert the body of the summary
   filteredText<- reactive ({
-    text %>% select(title,body,summary) %>% filter(title %in% input$selectTitle) %>% select(body,summary)
-    
+    unlist(articles %>% select(title,text) %>% filter(title %in% input$selectTitle) %>% select(text))
+  })
+
+  #Filter the text from the title input to show the expert the body of the summary
+  filteredSummary<- reactive ({
+    unlist(summaries %>% select(title,summary) %>% filter(title %in% input$selectTitle) %>% select(summary))
   })
   
-  output$contents <- renderTable(
-    filteredText()
-  )
-  
-  observeEvent(input$question1,{
-    
-  })
-  
+  # output$contents <- renderTable(
+  #   filteredText()
+  # )
+
+  output$text <- renderText(filteredText())
+  output$summary <- renderText(filteredSummary())
+  output$articleURL <- renderUI(HTML(paste0("<p><b>Para una mejor experiencia de lectura, visite: </b><a href=",selectedArticleData()$url,' target="_blank">',selectedArticleData()$url,"</a></p>"))) 
 }
 
 
