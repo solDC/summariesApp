@@ -28,7 +28,7 @@ summaries <- read.csv("data/summaries2.csv")
 # esto tiene que cambiar porque 3 es variable parametrica y sino hay acuerdo necesitamos más checks de expertos
 # numChoicesSummVal <- text %>% filter(numValid < 3) %>%  count()
 # choicesSummVal <- text %>% filter(numValid < 3)  %>% select(title) 
-
+adminArticles <- articles %>% select(id, title) #habrá que añadir lo que salga de la validación con el nivel de acuerdo etc
 
 # Main login screen
 loginpage <- div(id = "loginpage", style = "width: 500px; max-width: 100%; margin: 0 auto; padding: 20px;",
@@ -213,7 +213,7 @@ server <- function(input, output, session) {
   })  
 
   output$results <-  DT::renderDataTable({
-    datatable(text, options = list(autoWidth = TRUE,
+    datatable(adminArticles, options = list(autoWidth = TRUE,
                                    searching = FALSE))
   })
 
