@@ -10,19 +10,33 @@ library(dplyr)
 
 #source("~/shinyapp/summariesApp/aux.R")
 
-# #global variables
-# fields <- c("user","title","error")
-# responsesDir <- file.path("~/shinyapp/summariesApp/data")
-# epochTime <- function() {
-#   as.integer(Sys.time())
-# }
-
 setwd("~/shinyApp/summariesApp/")
 credentials <- read.csv(file="data/users.csv")
 
-articles <- read.csv("data/articles.csv") #test dataset XL-Sum
-summaries <- read.csv("data/summaries2.csv")
+articles <- (read.csv("data/articles.csv")) #test dataset XL-Sum
+#names(articles)[2] <- "idArticle"
+summaries <- read.delim("data/resumenesTEST.txt",header=FALSE) #read.csv("data/summaries2.csv")
+names(summaries)[1] <- "summary"
 
+# queria chequear si tenian la misma longitud para asingarlo uno a uno
+# nArticles <- count(articles) 
+# nSummaries <- count(summaries)
+# print(nSummaries == nArticles)
+
+# asumo que los primeros nSummaries se corresponder articulos:
+# idArticles <- articles  %>% slice(1:nrow(summaries)) %>%  select(id)
+# head(idArticles)
+# names(idArticles) <- "idArticle" #cambiar nombre de la columna
+# summaries <-cbind(summaries,idArticles)
+# summaries <- summaries[,c(ncol(summaries),1:(ncol(summaries)-1))] #dejar idArticle como primera columna del dataset
+titleArticles <- articles  %>% slice(1:nrow(summaries)) %>%  select(title)
+summaries <-cbind(summaries,titleArticles)
+summaries <- summaries[,c(ncol(summaries),1:(ncol(summaries)-1))] #dejar idArticle como primera columna del dataset
+
+#FUNCION QUE CHEQUEE QUE existe fichero de validación
+expertValidations <- read.csv(file="data/expertValidations.csv")
+validation <- data.frame(matrix(ncol=4,nrow=1))
+colnames(validation) <- colnames(expertValidations)
 
 #Titulos de textos que hay que validar porque tienen menos de 3 validacions --> 
 # esto tiene que cambiar porque 3 es variable parametrica y sino hay acuerdo necesitamos más checks de expertos
@@ -172,28 +186,24 @@ server <- function(input, output, session) {
                   fluidRow(
                     box(
                       width=12, title="Validación del resumen", status = "primary", solidHeader = TRUE, collapsible = FALSE,
-                      h4("Una vez leído el artículo, el resumen objetivo y el resumen generado automáticamente, por favor indique si las siguientes afirmaciones son verdaderas o falsas."),
-                      br(),
+                      #h4("Una vez leído el artículo, el resumen objetivo y el resumen generado automáticamente, por favor indique si las siguientes afirmaciones son verdaderas o falsas."),
+                      #br(),
                       radioButtons("question1", label = ("El resumen trasmite la idea general del texto y es comparable al resumen realizado por un humano."),
                                  choices = list("Verdadero" = 1, "Falso" = 2), 
-                                 selected = 2),
-                        #condition = "input.question1 == 1",
-                        radioButtons("question2", label = ("El resumen contiene algún error."),
-                                     choices = list("Verdadero" = 1, "Falso" = 2),  
-                                     selected = 2),
-                        conditionalPanel(
-                        condition = "input.question2 == 1",
-                        selectInput("selectError", label = ("Select type of error"), 
-                                    choices = list( "Entiende mal todo el texto " = 1, "Entiende mal cierta parte del texto " = 2, 
-                                                    "Agrega información que no está en el texto" = 3, 
-                                                    "La sintaxis de la oración introduce errores semánticos" = 4, "Otro" = 5), 
-                                    selected = 1),
-                        conditionalPanel(
-                          condition = "input.selectError == 5",
-                          textInput("text", label = ("Descripción del error que contiene el resumen"), value = "Explique el error...")
-                        )
+                                 selected = 1),
+            
+                      selectInput("selectError", label = ("Seleccione si existe el tipo de error:"), 
+                                  choices = list( "No hay errores" = 1, 
+                                                  "Entiende mal todo o cierta parte del texto" = 2, 
+                                                  "Agrega información que no está en el texto" = 3, 
+                                                  "La sintaxis de la oración introduce errores semánticos" = 4, "Otro" = 5), 
+                                  selected = 1),
+                      conditionalPanel(
+                        condition = "input.selectError == 5",
+                        textInput("errorDescription", label = ("Descripción del error que contiene el resumen"), value = "Explique el error...")
                       ),
-                      actionButton('validateButton',"Validar Resumen"))
+                      actionButton('validateButton',"Validar Resumen"),
+                      br())
                   ) #última fluidRow
            ) #tabItem validate  
         )# tabItems
@@ -205,7 +215,7 @@ server <- function(input, output, session) {
                       box(width = 12, dataTableOutput('results'))
                     ))   
           )
-        } #fin if si el usuario es el administrador
+        } #fin if cuando el usuario es el administrador
   }
   else {
     loginpage
@@ -217,9 +227,6 @@ server <- function(input, output, session) {
                                    searching = FALSE))
   })
 
-  selectedArticleData <- reactive ({
-    articles %>% select(id,title,summary,url) %>% filter(title %in% input$selectTitle)
-  })
 
   filteredText<- reactive ({
     unlist(articles %>% select(title,text) %>% filter(title %in% input$selectTitle) %>% select(text))
@@ -229,15 +236,45 @@ server <- function(input, output, session) {
     unlist(articles %>% select(title,summary) %>% filter(title %in% input$selectTitle) %>% select(summary))
   })
 
-  filteredGeneratedSummary<- reactive ({
-    unlist(summaries %>% select(title,summary) %>% filter(title %in% input$selectTitle) %>% select(summary))
+  filteredIdArticle <- reactive({
+    #articles %>% select(title,id) %>% filter(title %in% input$selectTitle) %>% select(id)
+    articles[articles$title == input$selectTitle,1]
   })
+
+  filteredGeneratedSummary<- reactive ({
+    #summaries %>% select(idArticle,summary) %>% filter(idArticle == filteredIdArticle) %>% select(summary)
+    #summaries[summaries$idArticle == filteredIdArticle,2] funciona en la consola pero no acá
+    unlist(summaries %>% filter(title %in% input$selectTitle) %>% select(summary))
+  })
+  
+
+    selectedArticleData <- reactive ({
+      articles %>% select(id,title,summary,url) %>% filter(title %in% input$selectTitle)
+    })
   
   output$text <- renderText(filteredText())
   output$objectiveSummary <- renderText(filteredObjectiveSummary())
   output$generatedSummary <- renderText(filteredGeneratedSummary())
   output$articleURL <- renderUI(HTML(paste0("<p><b>Para una mejor experiencia de lectura, visite: </b><a href=",selectedArticleData()$url,' target="_blank">',selectedArticleData()$url,"</a></p>"))) 
-}
+
+  observeEvent(input$validateButton,{
+    # req(USER$login)
+    # Username <- isolate(input$userName)
+    validation$username_id <- isolate(input$userName)
+    validation$title <- isolate(input$selectTitle)
+    validation$resumenOK <- isolate(input$question1)
+    if(input$selectError == 5){
+      validation$error <- isolate(input$errorDescription)
+    }
+    else{
+      validation$error <- isolate(input$selectError)
+    }
+    write.table(validation,file="data/expertValidations.csv",append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
+      
+      
+  })
+  
+  }
 
 
 
