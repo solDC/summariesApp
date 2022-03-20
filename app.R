@@ -11,8 +11,10 @@ library(dplyr)
 #source("~/shinyapp/summariesApp/aux.R")
 
 setwd("~/shinyApp/summariesApp/")
+typeErrors <- list( "No hay errores" = 1,"Entiende mal todo o cierta parte del texto" = 2,
+                    "Agrega información que no está en el texto" = 3,
+                    "La sintaxis de la oración introduce errores semánticos" = 4, "Otro" = 5)
 credentials <- read.csv(file="data/users.csv")
-
 articles <- (read.csv("data/articles.csv")) #test dataset XL-Sum
 #names(articles)[2] <- "idArticle"
 summaries <- read.delim("data/resumenesTEST.txt",header=FALSE) #read.csv("data/summaries2.csv")
@@ -22,21 +24,21 @@ names(summaries)[1] <- "summary"
 # nArticles <- count(articles) 
 # nSummaries <- count(summaries)
 # print(nSummaries == nArticles)
-
 # asumo que los primeros nSummaries se corresponder articulos:
 # idArticles <- articles  %>% slice(1:nrow(summaries)) %>%  select(id)
 # head(idArticles)
 # names(idArticles) <- "idArticle" #cambiar nombre de la columna
 # summaries <-cbind(summaries,idArticles)
 # summaries <- summaries[,c(ncol(summaries),1:(ncol(summaries)-1))] #dejar idArticle como primera columna del dataset
-titleArticles <- articles  %>% slice(1:nrow(summaries)) %>%  select(title)
-summaries <-cbind(summaries,titleArticles)
+articlesTitles <- articles  %>% slice(1:nrow(summaries)) %>%  select(title)
+summaries <-cbind(summaries,articlesTitles)
 summaries <- summaries[,c(ncol(summaries),1:(ncol(summaries)-1))] #dejar idArticle como primera columna del dataset
 
-#FUNCION QUE CHEQUEE QUE existe fichero de validación
-expertValidations <- read.csv(file="data/expertValidations.csv")
+
+#hacer FUNCION QUE CHEQUEE QUE existe fichero de validación y si existe haga lo siguiente:
+expertsValidations <- read.csv(file="data/expertsValidations.csv")
 validation <- data.frame(matrix(ncol=4,nrow=1))
-colnames(validation) <- colnames(expertValidations)
+colnames(validation) <- colnames(expertsValidations)
 
 #Titulos de textos que hay que validar porque tienen menos de 3 validacions --> 
 # esto tiene que cambiar porque 3 es variable parametrica y sino hay acuerdo necesitamos más checks de expertos
@@ -85,7 +87,8 @@ body <- dashboardBody(shinyjs::useShinyjs(), uiOutput("body"))
 ui<-dashboardPage(header, sidebar, body, skin = "blue")
 
 server <- function(input, output, session) {
-  
+
+  ##### LOGIN
   login = FALSE
   USER <- reactiveValues(login = login)
   
@@ -118,8 +121,8 @@ server <- function(input, output, session) {
     req(USER$login)
     Username <- isolate(input$userName)
     credentials["permission"][which(credentials$username_id==Username),]
-  }) 
-  
+  })
+
   output$logoutbtn <- renderUI({
     req(USER$login)
     tags$li(a(icon("far fa-sign-out",lib = "font-awesome"), "Logout", 
@@ -129,6 +132,17 @@ server <- function(input, output, session) {
                     font-weight: bold; margin:5px; padding: 10px;")
   })
 
+  #updateSelectizeInput(session, 'selectTitle', choices = articlesTitles$title, server = TRUE)
+  #PRUEBA AGREGAR ACÁ TITULOS PENDIENTES DE VALIDAR AL USUARIO
+  
+  pendingTitles <- reactive({
+    req(USER$login)
+    Username <- isolate(input$userName)
+    validatedSummaries <- expertsValidations %>% filter(username_id == input$userName) %>% select(title)
+    pending <- setdiff(articlesTitles,validatedSummaries)
+    
+  })
+  
   output$sidebarpanel <- renderUI({
     if (USER$login == TRUE){
       #comparo contra admin en caso de crear el super-expert
@@ -161,9 +175,10 @@ server <- function(input, output, session) {
                   fluidRow(
                     box(
                       width=12, title="Título", status = "primary", solidHeader = TRUE, collapsible = FALSE,
-                      selectInput("selectTitle",
-                                    label=("Seleccione el artículo a validar"),
-                                    choices = articles$title)) #choices = choicesSummVal
+                      # selectInput("selectTitle",
+                      #               label=("Seleccione el artículo a validar"),
+                      #               choices = articlesTitles)) # *********************************
+                      selectizeInput("selectTitle", label=("Seleccione el artículo a validar"),choices = pendingTitles)) #articlesTitles
                   ),
                   
                   fluidRow(
@@ -193,16 +208,13 @@ server <- function(input, output, session) {
                                  selected = 1),
             
                       selectInput("selectError", label = ("Seleccione si existe el tipo de error:"), 
-                                  choices = list( "No hay errores" = 1, 
-                                                  "Entiende mal todo o cierta parte del texto" = 2, 
-                                                  "Agrega información que no está en el texto" = 3, 
-                                                  "La sintaxis de la oración introduce errores semánticos" = 4, "Otro" = 5), 
+                                  choices = typeErrors, 
                                   selected = 1),
                       conditionalPanel(
                         condition = "input.selectError == 5",
                         textInput("errorDescription", label = ("Descripción del error que contiene el resumen"), value = "Explique el error...")
                       ),
-                      actionButton('validateButton',"Validar Resumen"),
+                      actionButton('validateButton',"Validar Resumen",class="btn-primary"),
                       br())
                   ) #última fluidRow
            ) #tabItem validate  
@@ -221,7 +233,7 @@ server <- function(input, output, session) {
     loginpage
   }
   })  
-
+  
   output$results <-  DT::renderDataTable({
     datatable(adminArticles, options = list(autoWidth = TRUE,
                                    searching = FALSE))
@@ -262,16 +274,15 @@ server <- function(input, output, session) {
     # Username <- isolate(input$userName)
     validation$username_id <- isolate(input$userName)
     validation$title <- isolate(input$selectTitle)
-    validation$resumenOK <- isolate(input$question1)
+    validation$summaryOK <- isolate(input$question1)
     if(input$selectError == 5){
       validation$error <- isolate(input$errorDescription)
     }
     else{
       validation$error <- isolate(input$selectError)
     }
-    write.table(validation,file="data/expertValidations.csv",append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
-      
-      
+    write.table(validation,file="data/expertsValidations.csv",append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
+    
   })
   
   }
