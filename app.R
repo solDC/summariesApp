@@ -7,6 +7,7 @@ library(sodium) #para encriptar contraseñas
 library(tidyverse)
 library(dplyr)
 #library(digest)
+library(readr) #read txt more efficient
 
 #source("~/shinyapp/summariesApp/aux.R")
 
@@ -17,7 +18,9 @@ typeErrors <- list( "No hay errores" = 1,"Entiende mal todo o cierta parte del t
 credentials <- read.csv(file="data/users.csv")
 articles <- (read.csv("data/articles.csv")) #test dataset XL-Sum
 #names(articles)[2] <- "idArticle"
-summaries <- read.delim("data/resumenesTEST.txt",header=FALSE) #read.csv("data/summaries2.csv")
+#summaries <- read.delim("data/resumenesTEST.txt",header=FALSE) #read.csv("data/summaries2.csv")
+summaries <- as.data.frame(read_lines("data/resumenesTEST.txt"))
+typeof(summaries)
 names(summaries)[1] <- "summary"
 
 # queria chequear si tenian la misma longitud para asingarlo uno a uno
@@ -135,13 +138,13 @@ server <- function(input, output, session) {
   #updateSelectizeInput(session, 'selectTitle', choices = articlesTitles$title, server = TRUE)
   #PRUEBA AGREGAR ACÁ TITULOS PENDIENTES DE VALIDAR AL USUARIO
   
-  pendingTitles <- reactive({
-    req(USER$login)
-    Username <- isolate(input$userName)
-    validatedSummaries <- expertsValidations %>% filter(username_id == input$userName) %>% select(title)
-    pending <- setdiff(articlesTitles,validatedSummaries)
-    
-  })
+  # pendingTitles <- reactive({
+  #   req(USER$login)
+  #   Username <- isolate(input$userName)
+  #   validatedSummaries <- expertsValidations %>% filter(username_id == input$userName) %>% select(title)
+  #   pending <- setdiff(articlesTitles,validatedSummaries)
+  #   
+  # })
   
   output$sidebarpanel <- renderUI({
     if (USER$login == TRUE){
@@ -174,33 +177,49 @@ server <- function(input, output, session) {
           tabItem(tabName = "validate", class = "active",
                   fluidRow(
                     box(
-                      width=12, title="Título", status = "primary", solidHeader = TRUE, collapsible = FALSE,
+                      width=12, title="Título", status = "primary", #solidHeader = TRUE, collapsible = FALSE,
                       # selectInput("selectTitle",
                       #               label=("Seleccione el artículo a validar"),
                       #               choices = articlesTitles)) # *********************************
-                      selectizeInput("selectTitle", label=("Seleccione el artículo a validar"),choices = pendingTitles)) #articlesTitles
+                      selectizeInput("selectTitle", label=("Seleccione el artículo a validar"),choices = articlesTitles)) #
+                  ),
+                  
+                  # fluidRow(
+                  #   box(
+                  #     width=12, title="Texto del artículo",status = "primary", solidHeader = TRUE, collapsible = TRUE,collapsed = TRUE,
+                  #     uiOutput('articleURL'),
+                  #     br(),
+                  #     textOutput('text'))
+                  # ), 
+                  
+                  fluidRow(
+                    tabBox(
+                      # Title can include an icon
+                      title = "Texto del artículo", width =12, side="right",
+                      tabPanel("Iframe",
+                               htmlOutput('textFrame')
+                               ),
+                      tabPanel("Texto plano", 
+                               textOutput('text')
+                      ),
+                      tabPanel("Sitio web", 
+                               uiOutput('articleURL')
+                               )
+                    )
                   ),
                   
                   fluidRow(
                     box(
-                      width=12, title="Texto del artículo",status = "primary", solidHeader = TRUE, collapsible = TRUE,collapsed = TRUE,
-                      uiOutput('articleURL'),
-                      br(),
-                      textOutput('text'))
-                  ), 
-                  
-                  fluidRow(
-                    box(
-                      width=6, title="Resumen objetivo",status = "primary", solidHeader = TRUE, collapsible = TRUE,
+                      width=6, title="Resumen objetivo",status = "primary", 
                       textOutput('objectiveSummary')),
                     box(
-                      width=6, title="Resumen generado automáticamente",status = "danger", solidHeader = TRUE, collapsible = TRUE,
+                      width=6, title="Resumen generado automáticamente",status = "danger",  
                       textOutput('generatedSummary'))
                   ), 
                   
                   fluidRow(
                     box(
-                      width=12, title="Validación del resumen", status = "primary", solidHeader = TRUE, collapsible = FALSE,
+                      width=12, title="Validación del resumen", status = "primary", #solidHeader = TRUE, collapsible = FALSE,
                       #h4("Una vez leído el artículo, el resumen objetivo y el resumen generado automáticamente, por favor indique si las siguientes afirmaciones son verdaderas o falsas."),
                       #br(),
                       radioButtons("question1", label = ("El resumen trasmite la idea general del texto y es comparable al resumen realizado por un humano."),
@@ -265,9 +284,18 @@ server <- function(input, output, session) {
     })
   
   output$text <- renderText(filteredText())
+  
+  output$textFrame <- renderUI({
+    test <- tags$iframe(src = selectedArticleData()$url, width = '100%')
+    print(test)
+    test
+  })
+  
   output$objectiveSummary <- renderText(filteredObjectiveSummary())
+  
   output$generatedSummary <- renderText(filteredGeneratedSummary())
-  output$articleURL <- renderUI(HTML(paste0("<p><b>Para una mejor experiencia de lectura, visite: </b><a href=",selectedArticleData()$url,' target="_blank">',selectedArticleData()$url,"</a></p>"))) 
+  
+  output$articleURL <- renderUI(HTML(paste0("<p><b>Para leerlo en la página del site visite: </b><a href=",selectedArticleData()$url,' target="_blank">',selectedArticleData()$url,"</a></p>"))) 
 
   observeEvent(input$validateButton,{
     # req(USER$login)
