@@ -1,47 +1,54 @@
 library(shiny)
 library(shinyauthr)
 library(shinydashboard)
+library(DT)
 library(shinyjs)
-library(sodium) #encrypt passwords
+library(sodium) #para encriptar contraseñas
 library(tidyverse)
 library(dplyr)
+#library(digest)
 library(readr) #read txt more efficient
-library(reactlog)
-library(shinyalert)
-reactiveConsole(TRUE)
 
 #source("~/shinyapp/summariesApp/aux.R")
 
 setwd("~/shinyApp/summariesApp/")
-
 typeErrors <- list( "No hay errores" = 1,"Entiende mal todo o cierta parte del texto" = 2,
                     "Agrega información que no está en el texto" = 3,
                     "La sintaxis de la oración introduce errores semánticos" = 4, "Otro" = 5)
-
-#Load files --> only one time when app loads
-#TODO: para todos los ficheros: función que chequee si existe el fichero o mensaje de error en caso contrario
-
 credentials <- read.csv(file="data/users.csv")
-
 articles <- (read.csv("data/articles.csv")) #test dataset XL-Sum
 #names(articles)[2] <- "idArticle"
-
-#Articles and summaries are related by its position in the file 
+#summaries <- read.delim("data/resumenesTEST.txt",header=FALSE) #read.csv("data/summaries2.csv")
 summaries <- as.data.frame(read_lines("data/resumenesTEST.txt"))
+typeof(summaries)
 names(summaries)[1] <- "summary"
 
-#BORRAR
-articlesTitles <- articles  %>% slice(1:nrow(summaries)) %>%  select(title) 
-# summaries <-cbind(summaries,articlesTitles)
-# summaries <- summaries[,c(ncol(summaries),1:(ncol(summaries)-1))] #dejar title como primera columna del dataset
+# queria chequear si tenian la misma longitud para asingarlo uno a uno
+# nArticles <- count(articles) 
+# nSummaries <- count(summaries)
+# print(nSummaries == nArticles)
+# asumo que los primeros nSummaries se corresponder articulos:
+# idArticles <- articles  %>% slice(1:nrow(summaries)) %>%  select(id)
+# head(idArticles)
+# names(idArticles) <- "idArticle" #cambiar nombre de la columna
+# summaries <-cbind(summaries,idArticles)
+# summaries <- summaries[,c(ncol(summaries),1:(ncol(summaries)-1))] #dejar idArticle como primera columna del dataset
+articlesTitles <- articles  %>% slice(1:nrow(summaries)) %>%  select(title)
+summaries <-cbind(summaries,articlesTitles)
+summaries <- summaries[,c(ncol(summaries),1:(ncol(summaries)-1))] #dejar idArticle como primera columna del dataset
 
 
+#hacer FUNCION QUE CHEQUEE QUE existe fichero de validación y si existe haga lo siguiente:
+expertsValidations <- read.csv(file="data/expertsValidations.csv")
+validation <- data.frame(matrix(ncol=4,nrow=1))
+colnames(validation) <- colnames(expertsValidations)
 
-
-# de momento lo dejo acá
+#Titulos de textos que hay que validar porque tienen menos de 3 validacions --> 
+# esto tiene que cambiar porque 3 es variable parametrica y sino hay acuerdo necesitamos más checks de expertos
+# numChoicesSummVal <- text %>% filter(numValid < 3) %>%  count()
+# choicesSummVal <- text %>% filter(numValid < 3)  %>% select(title) 
 adminArticles <- articles %>% select(id, title) #habrá que añadir lo que salga de la validación con el nivel de acuerdo etc
 
-############
 # Main login screen
 loginpage <- div(id = "loginpage", style = "width: 500px; max-width: 100%; margin: 0 auto; padding: 20px;",
                  wellPanel(
@@ -72,7 +79,6 @@ loginpage <- div(id = "loginpage", style = "width: 500px; max-width: 100%; margi
 )
 
 
-############ 
 #UI
 header <- dashboardHeader( title = "Validación de resúmenes", titleWidth = 250, uiOutput("logoutbtn"))
 
@@ -80,15 +86,12 @@ sidebar <- dashboardSidebar(width = 250,uiOutput("sidebarpanel"))
 
 body <- dashboardBody(shinyjs::useShinyjs(), uiOutput("body"))
 
+
 ui<-dashboardPage(header, sidebar, body, skin = "blue")
 
-
-############
-#Server
 server <- function(input, output, session) {
 
-  #LOGIN
-  ######
+  ##### LOGIN
   login = FALSE
   USER <- reactiveValues(login = login)
   
@@ -104,8 +107,7 @@ server <- function(input, output, session) {
             pasverify
             if(pasverify) {
               USER$login <- TRUE
-            } 
-            else {
+            } else {
               shinyjs::toggle(id = "nomatch", anim = TRUE, time = 1, animType = "fade")
               shinyjs::delay(3000, shinyjs::toggle(id = "nomatch", anim = TRUE, time = 1, animType = "fade"))
             }
@@ -118,17 +120,12 @@ server <- function(input, output, session) {
     }    
   })
   
-
-  ######
-  # Type of user ----QUITE ISOLATE
   typeUser <- reactive ({
     req(USER$login)
-    Username <- input$userName  #isolate(input$userName)
+    Username <- isolate(input$userName)
     credentials["permission"][which(credentials$username_id==Username),]
   })
 
-  ######
-  # Logout button Render UI
   output$logoutbtn <- renderUI({
     req(USER$login)
     tags$li(a(icon("far fa-sign-out",lib = "font-awesome"), "Logout", 
@@ -138,11 +135,21 @@ server <- function(input, output, session) {
                     font-weight: bold; margin:5px; padding: 10px;")
   })
 
-  ######
-  # Sidebar panel Render UI
+  #updateSelectizeInput(session, 'selectTitle', choices = articlesTitles$title, server = TRUE)
+  #PRUEBA AGREGAR ACÁ TITULOS PENDIENTES DE VALIDAR AL USUARIO
+  
+  # pendingTitles <- reactive({
+  #   req(USER$login)
+  #   Username <- isolate(input$userName)
+  #   validatedSummaries <- expertsValidations %>% filter(username_id == input$userName) %>% select(title)
+  #   pending <- setdiff(articlesTitles,validatedSummaries)
+  #   
+  # })
+  
   output$sidebarpanel <- renderUI({
     if (USER$login == TRUE){
-      if(typeUser() == "expert"){ 
+      #comparo contra admin en caso de crear el super-expert
+      if(typeUser() != "admin"){ 
         sidebarMenu(
           menuItem("Information", tabName = "information", icon = icon("fas fa-info")),
           menuItem("Validar resumen", tabName = "validate", icon = icon("th",lib = "font-awesome"))
@@ -156,56 +163,35 @@ server <- function(input, output, session) {
     }
   })
 
-  ######
-  #Generar la lista de títulos para el usuario ---me falta agregarle a ver si hay o no hay acuerdo
-  validation <- reactiveValues(done=0)
-  
-  expertsValidations <- reactive({
-    read.csv(file="data/expertsValidations.csv",header=TRUE)
-  })
-  
-  userValidatedTitles <- reactive({
-    req(USER$login)
-    req(expertsValidations)
-    Username <- input$userName #saque el ISOLATE()
-    validatedTitles <- expertsValidations() %>% filter(username_id==Username) %>% select(position)
-    as.data.frame(validatedTitles)
-    })
-  
-  userTitles <- reactive({
-    req(userValidatedTitles())
-    if (count(userValidatedTitles()) > 0){
-      articles[-userValidatedTitles()$position,3]
-    }
-    else{
-      articles$title     
-    }
-    
-  })
-  
-  #No me funciona:
-  #userTitles <- articles  %>% slice(1:nrow(summaries)) %>%  filter(username = Username()) %>%select(title)
-  #updateSelectizeInput(session,'selectTitle',choices = userTitles(), server=TRUE)
-  
-  
-  ######
-  # Body Render UI depending on logged user
   output$body <- renderUI({
     if (USER$login == TRUE) {
-      if(typeUser() == "expert"){
+      if(typeUser() != "admin"){
+        
         tabItems(
+          
+          #comparaba contra expert pero tal vez cree usuario de tipo super-expert para cuando no hay acuerdo entre experts normales
           tabItem(tabName = "information", 
                     h4("Acá voy a poner un texto donde se explica el objetivo de la herramienta, el dataset utilizado y el problema con el resumen objectivo del dataset que 
                          a veces viene con datos que no se pueden inferir del texto y no sé si hace falta algo más.")),
+          
           tabItem(tabName = "validate", class = "active",
                   fluidRow(
                     box(
                       width=12, title="Título", status = "primary", #solidHeader = TRUE, collapsible = FALSE,
-                      selectInput("selectTitle",
-                                    label=("Seleccione el artículo a validar"),
-                                    choices = userTitles())) # *********************************
-                      #selectizeInput('selectTitle', label=("Seleccione el artículo a validar"),choices = articlesTitles )) #
+                      # selectInput("selectTitle",
+                      #               label=("Seleccione el artículo a validar"),
+                      #               choices = articlesTitles)) # *********************************
+                      selectizeInput("selectTitle", label=("Seleccione el artículo a validar"),choices = articlesTitles)) #
                   ),
+                  
+                  # fluidRow(
+                  #   box(
+                  #     width=12, title="Texto del artículo",status = "primary", solidHeader = TRUE, collapsible = TRUE,collapsed = TRUE,
+                  #     uiOutput('articleURL'),
+                  #     br(),
+                  #     textOutput('text'))
+                  # ), 
+                  
                   fluidRow(
                     tabBox(
                       # Title can include an icon
@@ -221,6 +207,7 @@ server <- function(input, output, session) {
                                )
                     )
                   ),
+                  
                   fluidRow(
                     box(
                       width=6, title="Resumen objetivo",status = "primary", 
@@ -229,6 +216,7 @@ server <- function(input, output, session) {
                       width=6, title="Resumen generado automáticamente",status = "danger",  
                       textOutput('generatedSummary'))
                   ), 
+                  
                   fluidRow(
                     box(
                       width=12, title="Validación del resumen", status = "primary", #solidHeader = TRUE, collapsible = FALSE,
@@ -265,15 +253,11 @@ server <- function(input, output, session) {
   }
   })  
   
-  ######
-  #User Admin
   output$results <-  DT::renderDataTable({
     datatable(adminArticles, options = list(autoWidth = TRUE,
                                    searching = FALSE))
   })
 
-  ######
-  #User Expert 
 
   filteredText<- reactive ({
     unlist(articles %>% select(title,text) %>% filter(title %in% input$selectTitle) %>% select(text))
@@ -282,16 +266,19 @@ server <- function(input, output, session) {
   filteredObjectiveSummary<- reactive ({
     unlist(articles %>% select(title,summary) %>% filter(title %in% input$selectTitle) %>% select(summary))
   })
-  
-  # position <- reactive({
-  #   unlist(which(articles$title == input$selectTitle))
-  # })
+
+  filteredIdArticle <- reactive({
+    #articles %>% select(title,id) %>% filter(title %in% input$selectTitle) %>% select(id)
+    articles[articles$title == input$selectTitle,1]
+  })
 
   filteredGeneratedSummary<- reactive ({
-    #summaries[[1]][position()]
-    summaries[[1]][which(articles$title == input$selectTitle)]
+    #summaries %>% select(idArticle,summary) %>% filter(idArticle == filteredIdArticle) %>% select(summary)
+    #summaries[summaries$idArticle == filteredIdArticle,2] funciona en la consola pero no acá
+    unlist(summaries %>% filter(title %in% input$selectTitle) %>% select(summary))
   })
   
+
     selectedArticleData <- reactive ({
       articles %>% select(id,title,summary,url) %>% filter(title %in% input$selectTitle)
     })
@@ -311,28 +298,23 @@ server <- function(input, output, session) {
   output$articleURL <- renderUI(HTML(paste0("<p><b>Para leerlo en la página del site visite: </b><a href=",selectedArticleData()$url,' target="_blank">',selectedArticleData()$url,"</a></p>"))) 
 
   observeEvent(input$validateButton,{
-    req(USER$login)
-    req(expertsValidations)
-    validation <- data.frame(matrix(ncol=5,nrow=1)) #esto vale para validar un resumen
-    colnames(validation) <- colnames(expertsValidations()) #esto vale para guardar info de validación de un resumen
-    validation$username_id <- input$userName
-    validation$title <- input$selectTitle
-    validation$position <- which(articles$title == input$selectTitle)
-    validation$summaryOK <- input$question1
+    # req(USER$login)
+    # Username <- isolate(input$userName)
+    validation$username_id <- isolate(input$userName)
+    validation$title <- isolate(input$selectTitle)
+    validation$summaryOK <- isolate(input$question1)
     if(input$selectError == 5){
-      validation$error <- input$errorDescription
+      validation$error <- isolate(input$errorDescription)
     }
     else{
-      validation$error <- input$selectError
+      validation$error <- isolate(input$selectError)
     }
-    print(validation)
     write.table(validation,file="data/expertsValidations.csv",append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
-    shinyalert(title="Validation stored",type="success") 
-    newList<-userValidatedTitles()
-    updateSelectInput("selectTitle",choices=newList)
+    
   })
   
-  
   }
+
+
 
 runApp(list(ui = ui, server = server), launch.browser = TRUE)
