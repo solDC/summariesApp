@@ -344,22 +344,15 @@ server <- function(input, output, session) {
     print(validation)
     write.table(validation,file="data/expertsValidations.csv",append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
     shinyalert(title="Validation stored",type="success") 
-
-    # print(VALIDATIONS$positions)
-    # print(validation$position)    
+ 
     #update select input
     position <- validation$position
-    # print(typeof(VALIDATIONS$positions))
     VALIDATIONS$positions <- append(VALIDATIONS$positions$position,position)
     VALIDATIONS$positions <- as.data.frame(VALIDATIONS$positions)
     colnames(VALIDATIONS$positions) <- c("position")
-    # print(VALIDATIONS$positions)
-    # print(typeof(VALIDATIONS$positions))
-    remaining <- articles[-VALIDATIONS$positions$position,3] #funciona
-    TITLES$userTitles <- remaining
-    updateSelectInput(session,"selectTitle",choices=remaining)
-    print(head(TITLES$userTitles),10)
-    
+    TITLES$userTitles <- articles[-VALIDATIONS$positions$position,3] #funciona
+    updateSelectInput(session,"selectTitle",choices=TITLES$userTitles)
+
     #compute agreeement
   })
 
