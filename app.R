@@ -170,24 +170,14 @@ server <- function(input, output, session) {
   userTitles <- data.frame(matrix(ncol=1,nrow=0))
   colnames(userTitles) <- c("title")
   TITLES <- reactiveValues(userTitles = userTitles) #TITLES$userTitles
-  
-  # observe({
-  #   print("Vectores vacíos: ")
-  #   print(VALIDATIONS$positions)
-  #   print(TITLES$userTitles)
-  # })
-  
-  #load validations
-  expertsValidations <- reactive({
-    req(USER$login)
-    read.csv(file="data/expertsValidations.csv",header=TRUE)
-    })
+
+  expertsValidations <- read.csv(file="data/expertsValidations.csv",header=TRUE)
   
   observeEvent(input$login,{
     req(USER$login)
     if (USER$login == TRUE) {
       #filter positions of validated articles by logged user 
-      validatedTitles <- expertsValidations() %>% filter(username_id == input$userName) %>% select(position)
+      validatedTitles <- expertsValidations %>% filter(username_id == input$userName) %>% select(position)
       VALIDATIONS$positions <- as.data.frame(validatedTitles)  
       if (length(VALIDATIONS$positions > 0)){
         TITLES$userTitles <- articles[-VALIDATIONS$positions$position,3]
@@ -198,12 +188,6 @@ server <- function(input, output, session) {
     }
     print(VALIDATIONS$positions)
   })
-
-  # observe({
-  #   print("Vectores con cosas: ")
-  #   print(VALIDATIONS$positions)
-  #   print(head(TITLES$userTitles))
-  # })
   
   #No me funciona:
   #userTitles <- articles  %>% slice(1:nrow(summaries)) %>%  filter(username = Username()) %>%select(title)
@@ -304,13 +288,8 @@ server <- function(input, output, session) {
   filteredObjectiveSummary<- reactive ({
     unlist(articles %>% select(title,summary) %>% filter(title %in% input$selectTitle) %>% select(summary))
   })
-  
-  # position <- reactive({
-  #   unlist(which(articles$title == input$selectTitle))
-  # })
 
   filteredGeneratedSummary<- reactive ({
-    #summaries[[1]][position()]
     summaries[[1]][which(articles$title == input$selectTitle)]
   })
   
@@ -335,7 +314,7 @@ server <- function(input, output, session) {
   observeEvent(input$validateButton,{
     #save validation
     validation <- data.frame(matrix(ncol=5,nrow=1)) #esto vale para validar un resumen
-    colnames(validation) <- colnames(expertsValidations()) #esto vale para guardar info de validación de un resumen
+    colnames(validation) <- colnames(expertsValidations) #esto vale para guardar info de validación de un resumen
     validation$username_id <- input$userName
     validation$title <- input$selectTitle
     validation$position <- which(articles$title == input$selectTitle) #position()
