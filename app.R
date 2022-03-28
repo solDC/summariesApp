@@ -26,8 +26,7 @@ credentials <- read.csv(file="data/users.csv")
 articles <- (read.csv("data/articles.csv")) #test dataset XL-Sum
 #names(articles)[2] <- "idArticle"
 
-#load users validations
-expertsValidations <- read.csv(file="data/expertsValidations.csv",header=TRUE)
+
 
 
 #Articles and summaries are related by its position in the file 
@@ -178,11 +177,17 @@ server <- function(input, output, session) {
   #   print(TITLES$userTitles)
   # })
   
+  #load validations
+  expertsValidations <- reactive({
+    req(USER$login)
+    read.csv(file="data/expertsValidations.csv",header=TRUE)
+    })
+  
   observeEvent(input$login,{
     req(USER$login)
     if (USER$login == TRUE) {
       #filter positions of validated articles by logged user 
-      validatedTitles <- expertsValidations %>% filter(username_id == input$userName) %>% select(position)
+      validatedTitles <- expertsValidations() %>% filter(username_id == input$userName) %>% select(position)
       VALIDATIONS$positions <- as.data.frame(validatedTitles)  
       if (length(VALIDATIONS$positions > 0)){
         TITLES$userTitles <- articles[-VALIDATIONS$positions$position,3]
@@ -330,10 +335,10 @@ server <- function(input, output, session) {
   observeEvent(input$validateButton,{
     #save validation
     validation <- data.frame(matrix(ncol=5,nrow=1)) #esto vale para validar un resumen
-    colnames(validation) <- colnames(expertsValidations) #esto vale para guardar info de validación de un resumen
+    colnames(validation) <- colnames(expertsValidations()) #esto vale para guardar info de validación de un resumen
     validation$username_id <- input$userName
     validation$title <- input$selectTitle
-    validation$position <- which(articles$title == input$selectTitle)
+    validation$position <- which(articles$title == input$selectTitle) #position()
     validation$summaryOK <- input$question1
     if(input$selectError == 5){
       validation$error <- input$errorDescription
@@ -350,7 +355,9 @@ server <- function(input, output, session) {
     VALIDATIONS$positions <- append(VALIDATIONS$positions$position,position)
     VALIDATIONS$positions <- as.data.frame(VALIDATIONS$positions)
     colnames(VALIDATIONS$positions) <- c("position")
-    TITLES$userTitles <- articles[-VALIDATIONS$positions$position,3] #funciona
+    TITLES$userTitles <- articles[-VALIDATIONS$positions$position,3] #no pude eliminar solo la fila de 
+                  #TITLES$userTitles y además también implicaba hacer un match para buscar el índice ahí
+                  #ver de ponerle id  lista de titulos y es más facil borrar
     updateSelectInput(session,"selectTitle",choices=TITLES$userTitles)
 
     #compute agreeement
