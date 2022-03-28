@@ -26,6 +26,10 @@ credentials <- read.csv(file="data/users.csv")
 articles <- (read.csv("data/articles.csv")) #test dataset XL-Sum
 #names(articles)[2] <- "idArticle"
 
+#load users validations
+expertsValidations <- read.csv(file="data/expertsValidations.csv",header=TRUE)
+
+
 #Articles and summaries are related by its position in the file 
 summaries <- as.data.frame(read_lines("data/resumenesTEST.txt"))
 names(summaries)[1] <- "summary"
@@ -159,41 +163,42 @@ server <- function(input, output, session) {
   ######
   #Generar la lista de títulos para el usuario ---me falta agregarle a ver si hay o no hay acuerdo
   
-  expertsValidations <- reactive({
-    read.csv(file="data/expertsValidations.csv",header=TRUE)
-  })
-
-  
-
-  positionUserValidatedTitles <- reactive({
-    req(USER$login)
-    #req(expertsValidations)
-    Username <- input$userName 
-    validatedTitles <- expertsValidations() %>% filter(username_id==Username) %>% select(position)
-    #print(count(validatedTitles))
-    as.data.frame(validatedTitles)
-    })
-
-  #Para grabar las posiciones de los titulos que ya valido el usuario
+  #Reactive Values to store all validations perform by the user (previous and new)
   positions <- data.frame(matrix(ncol=1,nrow=0))
   colnames(positions) <- c("position")
-  validations <- reactiveValues(positions = positions)
+  VALIDATIONS <- reactiveValues(positions = positions) #VALIDATIONS$positions
   
-  print(paste0("tiene que estar vacío: ",validations$positions))
+  userTitles <- data.frame(matrix(ncol=1,nrow=0))
+  colnames(userTitles) <- c("title")
+  TITLES <- reactiveValues(userTitles = userTitles) #TITLES$userTitles
   
-  userTitles <- reactive({
-    #req(positionUserValidatedTitles())
-    if (count(positionUserValidatedTitles()) > 0){
-      articles[-positionUserValidatedTitles()$position,3]
+  # observe({
+  #   print("Vectores vacíos: ")
+  #   print(VALIDATIONS$positions)
+  #   print(TITLES$userTitles)
+  # })
+  
+  observeEvent(input$login,{
+    req(USER$login)
+    if (USER$login == TRUE) {
+      #filter positions of validated articles by logged user 
+      validatedTitles <- expertsValidations %>% filter(username_id == input$userName) %>% select(position)
+      VALIDATIONS$positions <- as.data.frame(validatedTitles)  
+      if (length(VALIDATIONS$positions > 0)){
+        TITLES$userTitles <- articles[-VALIDATIONS$positions$position,3]
+      }
+      else{
+        TITLES$userTitles <- articles$title     
+      }
     }
-    else{
-      articles$title     
-    }
+    print(VALIDATIONS$positions)
   })
-  
-  observeEvent
-  validations$positions <- rbind(validations$positions,positionUserValidatedTitles())
-  print(paste0("tiene que haber algo: ",validations$positions))
+
+  # observe({
+  #   print("Vectores con cosas: ")
+  #   print(VALIDATIONS$positions)
+  #   print(head(TITLES$userTitles))
+  # })
   
   #No me funciona:
   #userTitles <- articles  %>% slice(1:nrow(summaries)) %>%  filter(username = Username()) %>%select(title)
@@ -215,7 +220,7 @@ server <- function(input, output, session) {
                       width=12, title="Título", status = "primary", #solidHeader = TRUE, collapsible = FALSE,
                       selectInput("selectTitle",
                                     label=("Seleccione el artículo a validar"),
-                                    choices = userTitles())) # *********************************
+                                    choices = TITLES$userTitles)) # *********************************
                       #selectizeInput('selectTitle', label=("Seleccione el artículo a validar"),choices = articlesTitles )) #
                   ),
                   fluidRow(
@@ -324,10 +329,8 @@ server <- function(input, output, session) {
 
   observeEvent(input$validateButton,{
     #save validation
-    req(USER$login)
-    req(expertsValidations)
     validation <- data.frame(matrix(ncol=5,nrow=1)) #esto vale para validar un resumen
-    colnames(validation) <- colnames(expertsValidations()) #esto vale para guardar info de validación de un resumen
+    colnames(validation) <- colnames(expertsValidations) #esto vale para guardar info de validación de un resumen
     validation$username_id <- input$userName
     validation$title <- input$selectTitle
     validation$position <- which(articles$title == input$selectTitle)
@@ -341,14 +344,21 @@ server <- function(input, output, session) {
     print(validation)
     write.table(validation,file="data/expertsValidations.csv",append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
     shinyalert(title="Validation stored",type="success") 
-    
+
+    # print(VALIDATIONS$positions)
+    # print(validation$position)    
     #update select input
-    #newListTitles <- rbind(positionUserValidatedTitles(),validation$position)
-    print(paste0("tiene que haber algo: ",validations$positions))
-    validations$positions <- rbind(validations$positions,validation$position)
-    print(paste0("agrego la nueva validación",validations$positions))
-    remaining <- articles[-validations$positions,3] #newListTitles
+    position <- validation$position
+    # print(typeof(VALIDATIONS$positions))
+    VALIDATIONS$positions <- append(VALIDATIONS$positions$position,position)
+    VALIDATIONS$positions <- as.data.frame(VALIDATIONS$positions)
+    colnames(VALIDATIONS$positions) <- c("position")
+    # print(VALIDATIONS$positions)
+    # print(typeof(VALIDATIONS$positions))
+    remaining <- articles[-VALIDATIONS$positions$position,3] #funciona
+    TITLES$userTitles <- remaining
     updateSelectInput(session,"selectTitle",choices=remaining)
+    print(head(TITLES$userTitles),10)
     
     #compute agreeement
   })
@@ -356,4 +366,4 @@ server <- function(input, output, session) {
   
   }
 
-runApp(list(ui = ui, server = server), launch.browser = TRUE)
+runApp(list(ui = ui, server = server)) #, launch.browser = TRUE
