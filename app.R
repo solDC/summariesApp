@@ -160,26 +160,35 @@ server <- function(input, output, session) {
   })
 
   ######
-  #generate list of articles pending validation ---me falta agregarle a ver si hay o no hay acuerdo
+  # Generate list of articles pending validation ---me falta agregarle condicion de ver los que no tienen acuerdo
 
+  # Reactive Values to store all validations perform by the user (previous and new)
+  positions <- data.frame(matrix(ncol=1,nrow=0))
+  colnames(positions) <- c("position")
+  VALIDATIONS <- reactiveValues(positions = positions) #VALIDATIONS$positions
+  
+  userTitles <- data.frame(matrix(ncol=1,nrow=0))
+  colnames(userTitles) <- c("title")
+  TITLES <- reactiveValues(userTitles = userTitles) #TITLES$userTitles
+  
   expertsValidations <- read.csv(file="data/expertsValidations.csv",header=TRUE)
   
   observeEvent(input$login,{
     req(USER$login)
     if (USER$login == TRUE) {
       #filter positions of validated articles by logged user 
-      validatedTitlesPositions <<- expertsValidations %>% filter(username_id == input$userName) %>% select(position)
-      validatedTitlesPositions <<- as.data.frame(validatedTitlesPositions)  
-      if (length(validatedTitlesPositions > 0)){
-        pendingValidationTitles <<- articles[-validatedTitlesPositions$position,3]
+      validatedTitles <- expertsValidations %>% filter(username_id == input$userName) %>% select(position)
+      VALIDATIONS$positions <- as.data.frame(validatedTitles)  
+      if (length(VALIDATIONS$positions > 0)){
+        TITLES$userTitles <- articles[-VALIDATIONS$positions$position,3]
       }
       else{
-        pendingValidationTitles <<- articles$title     
+        TITLES$userTitles <- articles$title     
       }
     }
-    # print(validatedTitlesPositions)
-    # print(head(pendingValidationTitles))
+    print(head(VALIDATIONS$positions))
   })
+
   
   
   #No me funciona:
@@ -202,7 +211,7 @@ server <- function(input, output, session) {
                       width=12, title="Título", status = "primary", #solidHeader = TRUE, collapsible = FALSE,
                       selectInput("selectTitle",
                                     label=("Seleccione el artículo a validar"),
-                                    choices = pendingValidationTitles)) # *********************************
+                                    choices = TITLES$userTitles)) # *********************************
                       #selectizeInput('selectTitle', label=("Seleccione el artículo a validar"),choices = articlesTitles )) #
                   ),
                   fluidRow(
@@ -310,7 +319,7 @@ server <- function(input, output, session) {
     colnames(validation) <- colnames(expertsValidations) #esto vale para guardar info de validación de un resumen
     validation$username_id <- input$userName
     validation$title <- input$selectTitle
-    validation$position <- which(articles$title == input$selectTitle) 
+    validation$position <- which(articles$title == input$selectTitle) #position() uso esta para generar fichero de agreement
     validation$summaryOK <- input$question1
     if(input$selectError == 5){
       validation$error <- input$errorDescription
@@ -321,21 +330,17 @@ server <- function(input, output, session) {
     print(validation)
     write.table(validation,file="data/expertsValidations.csv",append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
     shinyalert(title="Validation stored",type="success") 
- 
+    
     #update select input
     position <- validation$position
-    validatedTitlesPositions <<- append(validatedTitlesPositions$position,position)
-    validatedTitlesPositions <<- as.data.frame(validatedTitlesPositions)
-    colnames(validatedTitlesPositions) <<- c("position")
-    pendingValidationTitles <<- articles[-validatedTitlesPositions$position,3] #no pude eliminar solo la fila de 
-                  #TITLES$userTitles y además también implicaba hacer un match para buscar el índice ahí
-                  #ver de ponerle id  lista de titulos y es más facil borrar
-    updateSelectInput(session,"selectTitle",choices=pendingValidationTitles)
-
+    VALIDATIONS$positions <- append(VALIDATIONS$positions$position,position)
+    VALIDATIONS$positions <- as.data.frame(VALIDATIONS$positions)
+    colnames(VALIDATIONS$positions) <- c("position")
+    TITLES$userTitles <- articles[-VALIDATIONS$positions$position,3] # ver de optimizar
+    updateSelectInput(session,"selectTitle",choices=TITLES$userTitles)
     #compute agreeement
   })
-
   
   }
 
-runApp(list(ui = ui, server = server)) #, launch.browser = TRUE
+runApp(list(ui = ui, server = server), launch.browser = TRUE) #
