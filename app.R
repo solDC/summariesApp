@@ -14,8 +14,8 @@ reactiveConsole(TRUE)
 
 setwd("~/shinyApp/summariesApp/")
 
-typeErrors <- list( "No hay errores" = 1,"Entiende mal todo o cierta parte del texto" = 2,
-                    "Agrega información que no está en el texto" = 3,
+typeErrors <- list( "No hay errores" = 1,"Entiende mal todo del texto" = 2,
+                    "Entiende mal alguna entidad (nombre propio, localidad, empresa)" = 3,
                     "La sintaxis de la oración introduce errores semánticos" = 4, "Otro" = 5)
 
 #Load files --> only one time when app loads
@@ -25,8 +25,6 @@ credentials <- read.csv(file="data/users.csv")
 
 articles <- (read.csv("data/articles.csv")) #test dataset XL-Sum
 #names(articles)[2] <- "idArticle"
-
-
 
 
 #Articles and summaries are related by its position in the file 
@@ -189,8 +187,7 @@ server <- function(input, output, session) {
     print(head(VALIDATIONS$positions))
   })
 
-  
-  
+
   #No me funciona:
   #userTitles <- articles  %>% slice(1:nrow(summaries)) %>%  filter(username = Username()) %>%select(title)
   #updateSelectizeInput(session,'selectTitle',choices = userTitles(), server=TRUE)
@@ -231,10 +228,7 @@ server <- function(input, output, session) {
                   ),
                   fluidRow(
                     box(
-                      width=6, title="Resumen objetivo",status = "primary", 
-                      textOutput('objectiveSummary')),
-                    box(
-                      width=6, title="Resumen generado automáticamente",status = "danger",  
+                      width=12, title="Resumen generado automáticamente",status = "primary",  
                       textOutput('generatedSummary'))
                   ), 
                   fluidRow(
@@ -242,16 +236,24 @@ server <- function(input, output, session) {
                       width=12, title="Validación del resumen", status = "primary", #solidHeader = TRUE, collapsible = FALSE,
                       #h4("Una vez leído el artículo, el resumen objetivo y el resumen generado automáticamente, por favor indique si las siguientes afirmaciones son verdaderas o falsas."),
                       #br(),
-                      radioButtons("question1", label = ("El resumen trasmite la idea general del texto y es comparable al resumen realizado por un humano."),
+                      radioButtons("question1", label = ("1- ¿El resumen ¿trasmite la idea general del texto?"),
                                  choices = list("Verdadero" = 1, "Falso" = 2), 
-                                 selected = 1),
-            
-                      selectInput("selectError", label = ("Seleccione si existe el tipo de error:"), 
+                                 selected = character(0)),
+                      conditionalPanel(
+                        condition = "input.question1 == 1",
+                        radioButtons("question2", label = ("2- El resumen, ¿contiene información inconsistente con el artículo?"),
+                                     choices = list("Verdadero" = 1, "Falso" = 2),  
+                                     selected = character(0)),
+                        radioButtons("question3", label = ("3- El resumen, ¿contiene alguna información que no puede ser inferida del artículo?"),
+                                     choices = list("Verdadero" = 1, "Falso" = 2), 
+                                     selected = character(0))
+                      ), #conditional panel
+                      selectInput("selectError", label = ("4- Seleccione el tipo de error, si existe:"), 
                                   choices = typeErrors, 
-                                  selected = 1),
+                                  selected = character(0)),
                       conditionalPanel(
                         condition = "input.selectError == 5",
-                        textInput("errorDescription", label = ("Descripción del error que contiene el resumen"), value = "Explique el error...")
+                        textInput("errorDescription", label = ("Describa el error"), value = "Explique el error...")
                       ),
                       actionButton('validateButton',"Validar Resumen",class="btn-primary"),
                       br())
