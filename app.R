@@ -288,10 +288,6 @@ server <- function(input, output, session) {
   filteredText<- reactive ({
     unlist(articles %>% select(title,text) %>% filter(title %in% input$selectTitle) %>% select(text))
   })
-  
-  filteredObjectiveSummary<- reactive ({
-    unlist(articles %>% select(title,summary) %>% filter(title %in% input$selectTitle) %>% select(summary))
-  })
 
   filteredGeneratedSummary<- reactive ({
     summaries[[1]][which(articles$title == input$selectTitle)]
@@ -308,9 +304,7 @@ server <- function(input, output, session) {
     print(test)
     test
   })
-  
-  output$objectiveSummary <- renderText(filteredObjectiveSummary())
-  
+
   output$generatedSummary <- renderText(filteredGeneratedSummary())
   
   output$articleURL <- renderUI(HTML(paste0("<p><b>Para leerlo en la página del site visite: </b><a href=",selectedArticleData()$url,' target="_blank">',selectedArticleData()$url,"</a></p>"))) 
