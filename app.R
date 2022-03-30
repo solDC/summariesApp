@@ -8,15 +8,17 @@ library(dplyr)
 library(readr) #read txt more efficient
 library(reactlog)
 library(shinyalert)
+
 reactiveConsole(TRUE)
 
 #source("~/shinyapp/summariesApp/aux.R")
 
 setwd("~/shinyApp/summariesApp/")
 
-typeErrors <- list( "No hay errores" = 1,"Entiende mal todo del texto" = 2,
-                    "Entiende mal alguna entidad (nombre propio, localidad, empresa)" = 3,
-                    "La sintaxis de la oración introduce errores semánticos" = 4, "Otro" = 5)
+typeErrors <- list( "No contiene errores" = 1,
+                    "Contiene información inconsistente con el artículo" = 2,
+                    "Contiene alguna información que no puede ser inferida del artículo" = 3,
+                    "No transmite el objetivo principal del texto"= 4)
 
 #Load files --> only one time when app loads
 #TODO: para todos los ficheros: función que chequee si existe el fichero o mensaje de error en caso contrario
@@ -31,16 +33,6 @@ articles <- (read.csv("data/articles.csv")) #test dataset XL-Sum
 summaries <- as.data.frame(read_lines("data/resumenesTEST.txt"))
 names(summaries)[1] <- "summary"
 
-#BORRAR
-articlesTitles <- articles  %>% slice(1:nrow(summaries)) %>%  select(title) 
-# summaries <-cbind(summaries,articlesTitles)
-# summaries <- summaries[,c(ncol(summaries),1:(ncol(summaries)-1))] #dejar title como primera columna del dataset
-
-
-
-
-# de momento lo dejo acá
-adminArticles <- articles %>% select(id, title) #habrá que añadir lo que salga de la validación con el nivel de acuerdo etc
 
 ############
 # Main login screen
@@ -205,56 +197,38 @@ server <- function(input, output, session) {
           tabItem(tabName = "validate", class = "active",
                   fluidRow(
                     box(
-                      width=12, title="Título", status = "primary", #solidHeader = TRUE, collapsible = FALSE,
+                      width=12, title="Título", status = "primary", solidHeader = TRUE, collapsible = FALSE,
                       selectInput("selectTitle",
                                     label=("Seleccione el artículo a validar"),
                                     choices = TITLES$userTitles)) # *********************************
                       #selectizeInput('selectTitle', label=("Seleccione el artículo a validar"),choices = articlesTitles )) #
                   ),
                   fluidRow(
-                    tabBox(
-                      # Title can include an icon
-                      title = "Texto del artículo", width =12, side="right",
-                      tabPanel("Iframe",
-                               htmlOutput('textFrame')
-                               ),
-                      tabPanel("Texto plano", 
-                               textOutput('text')
-                      ),
-                      tabPanel("Sitio web", 
-                               uiOutput('articleURL')
-                               )
-                    )
+                    box(
+                      width=12, title="Texto", status = "primary", solidHeader = TRUE, collapsible = FALSE,
+                      uiOutput('articleURL'))
                   ),
                   fluidRow(
                     box(
-                      width=12, title="Resumen generado automáticamente",status = "primary",  
+                      width=6, title="Resumen objetivo",status = "primary", solidHeader = TRUE,
+                      textOutput('objectiveSummary')),
+                    box(
+                      width=6, title="Resumen generado",status = "danger", solidHeader = TRUE,  
                       textOutput('generatedSummary'))
                   ), 
                   fluidRow(
                     box(
-                      width=12, title="Validación del resumen", status = "primary", #solidHeader = TRUE, collapsible = FALSE,
-                      #h4("Una vez leído el artículo, el resumen objetivo y el resumen generado automáticamente, por favor indique si las siguientes afirmaciones son verdaderas o falsas."),
-                      #br(),
-                      radioButtons("question1", label = ("1- ¿El resumen ¿trasmite la idea general del texto?"),
-                                 choices = list("Verdadero" = 1, "Falso" = 2), 
-                                 selected = character(0)),
-                      conditionalPanel(
-                        condition = "input.question1 == 1",
-                        radioButtons("question2", label = ("2- El resumen, ¿contiene información inconsistente con el artículo?"),
-                                     choices = list("Verdadero" = 1, "Falso" = 2),  
-                                     selected = character(0)),
-                        radioButtons("question3", label = ("3- El resumen, ¿contiene alguna información que no puede ser inferida del artículo?"),
-                                     choices = list("Verdadero" = 1, "Falso" = 2), 
-                                     selected = character(0))
-                      ), #conditional panel
-                      selectInput("selectError", label = ("4- Seleccione el tipo de error, si existe:"), 
+                      width=12, title="Validación del resumen generado", status = "primary", solidHeader = TRUE, collapsible = FALSE,
+                      h5("Una vez leído el artículo, el resumen objetivo y el resumen generado automáticamente, por favor conteste 
+                       las siguientes preguntas:"),
+                      br(),
+                      radioButtons("question1", label = ("El resumen generado: ¿trasmite la idea general del artículo 
+                                                         y es comparable al resumen objetivo?"),
+                                 choices = list("Verdadero" = 1, "Falso" = 2)), 
+                                 #selected = character(0)),
+                      selectInput("selectError", label = ("Seleccione, si existe, el tipo de error en el resumen generado:"), 
                                   choices = typeErrors, 
                                   selected = character(0)),
-                      conditionalPanel(
-                        condition = "input.selectError == 5",
-                        textInput("errorDescription", label = ("Describa el error"), value = "Explique el error...")
-                      ),
                       actionButton('validateButton',"Validar Resumen",class="btn-primary"),
                       br())
                   ) #última fluidRow
@@ -288,6 +262,10 @@ server <- function(input, output, session) {
   filteredText<- reactive ({
     unlist(articles %>% select(title,text) %>% filter(title %in% input$selectTitle) %>% select(text))
   })
+  
+  filteredObjectiveSummary<- reactive ({
+    unlist(articles %>% select(title,summary) %>% filter(title %in% input$selectTitle) %>% select(summary))
+  })
 
   filteredGeneratedSummary<- reactive ({
     summaries[[1]][which(articles$title == input$selectTitle)]
@@ -299,30 +277,21 @@ server <- function(input, output, session) {
   
   output$text <- renderText(filteredText())
   
-  output$textFrame <- renderUI({
-    test <- tags$iframe(src = selectedArticleData()$url, width = '100%')
-    print(test)
-    test
-  })
-
+  output$articleURL <- renderUI(HTML(paste0("<p><b>Para leer el artículo visite: </b><a href=",selectedArticleData()$url,' target="_blank">',selectedArticleData()$url,"</a></p>"))) 
+  
+  output$objectiveSummary <- renderText(filteredObjectiveSummary())
+  
   output$generatedSummary <- renderText(filteredGeneratedSummary())
   
-  output$articleURL <- renderUI(HTML(paste0("<p><b>Para leerlo en la página del site visite: </b><a href=",selectedArticleData()$url,' target="_blank">',selectedArticleData()$url,"</a></p>"))) 
-
   observeEvent(input$validateButton,{
     #save validation
     validation <- data.frame(matrix(ncol=5,nrow=1)) #esto vale para validar un resumen
     colnames(validation) <- colnames(expertsValidations) #esto vale para guardar info de validación de un resumen
     validation$username_id <- input$userName
     validation$title <- input$selectTitle
-    validation$position <- which(articles$title == input$selectTitle) #position() uso esta para generar fichero de agreement
+    validation$position <- which(articles$title == input$selectTitle) 
     validation$summaryOK <- input$question1
-    if(input$selectError == 5){
-      validation$error <- input$errorDescription
-    }
-    else{
-      validation$error <- input$selectError
-    }
+    validation$error <- input$selectError
     print(validation)
     write.table(validation,file="data/expertsValidations.csv",append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
     shinyalert(title="Validation stored",type="success") 
@@ -334,7 +303,9 @@ server <- function(input, output, session) {
     colnames(VALIDATIONS$positions) <- c("position")
     TITLES$userTitles <- articles[-VALIDATIONS$positions$position,3] # ver de optimizar
     updateSelectInput(session,"selectTitle",choices=TITLES$userTitles)
+    
     #compute agreeement
+    
   })
   
   }
