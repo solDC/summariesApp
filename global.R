@@ -1,7 +1,6 @@
 library(shiny)
 library(shinydashboard)
 library(shinyjs)
-library(tidyverse)
 library(dplyr)
 library(readr) #read txt more efficient
 library(reactlog)
@@ -26,14 +25,18 @@ credentials <- read.csv(file="data/users.csv")
 articles <- (read.csv("data/articles.csv")) #test dataset XL-Sum
 #names(articles)[2] <- "idArticle"
 
-
 #Articles and summaries are related by its position in the file 
 summaries <- as.data.frame(read_lines("data/resumenesTEST.txt"))
-names(summaries)[1] <- "summary"
 
+# Información base para tabla administrador
+adminArticles <- articles %>% select(title,summary)
+adminArticles$row_num <- seq.int(nrow(adminArticles)) 
+adminArticles <- adminArticles[,c(ncol(adminArticles),1:(ncol(adminArticles)-1))] #dejar ron_num como primera columna del dataset
+adminArticles <- cbind(adminArticles,summaries)
+names(adminArticles)[4] <- "generatedSummary"
+names(adminArticles)[3] <- "objectiveSummary"
 
-
-
+numCurrentValidations <- 0
 
 ############
 # Main login screen

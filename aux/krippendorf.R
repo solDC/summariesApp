@@ -9,6 +9,8 @@ nominal <- matrix(c(1,2,3,3,2,1,4,1,2,NA,NA,NA,
 set.seed(42)
 fit.full <- krippendorffs.alpha(nominal, level = "nominal", control = list(parallel = FALSE),verbose = TRUE)
 summary(fit.full)
+fit.full$alpha.hat
+
 (inf.6 = influence(fit.full, units = 6))
 fit.full$alpha.hat - inf.6$dfbeta.units
 fit.sub = krippendorffs.alpha(nominal[-6, ], level = "nominal",control = list(parallel = FALSE)) 

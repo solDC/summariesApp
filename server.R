@@ -5,10 +5,14 @@ library(shinyjs)
 library(sodium) #encrypt passwords
 library(tidyverse)
 library(dplyr)
+library(tidyr)
 library(reactlog)
 library(shinyalert)
+library(DT)
+
 
 reactiveConsole(TRUE)
+
 
 server <- function(input, output, session) {
 
@@ -56,7 +60,7 @@ server <- function(input, output, session) {
   # Logout button Render UI
   output$logoutbtn <- renderUI({
     req(USER$login)
-    tags$li(a(icon("far fa-sign-out",lib = "font-awesome"), "Logout", 
+    tags$li(a(icon("fa-sign-out",lib = "font-awesome"), "Logout", 
               href="javascript:window.location.reload(true)"),
             class = "dropdown", 
             style = "background-color: #eee !important; border: 0;
@@ -84,11 +88,12 @@ server <- function(input, output, session) {
   ######
   # Generate list of articles pending validation ---me falta agregarle condicion de ver los que no tienen acuerdo
 
-  # Reactive Values to store all validations perform by the user (previous and new)
+  # Reactive Value to store the position of all validated titles perform by the user (previous and new)
   positions <- data.frame(matrix(ncol=1,nrow=0))
   colnames(positions) <- c("position")
   VALIDATIONS <- reactiveValues(positions = positions) #VALIDATIONS$positions
   
+  # Reactive Value to store the titles that needs validation from the user
   userTitles <- data.frame(matrix(ncol=1,nrow=0))
   colnames(userTitles) <- c("title")
   TITLES <- reactiveValues(userTitles = userTitles) #TITLES$userTitles
@@ -113,7 +118,7 @@ server <- function(input, output, session) {
         TITLES$userTitles <- articles$title     
       }
     }
-    print(head(VALIDATIONS$positions))
+    #print(head(VALIDATIONS$positions))
   })
 
 
@@ -176,9 +181,15 @@ server <- function(input, output, session) {
           tabItems(
             tabItem(tabName ="dashboard", class = "active",
                     fluidRow(
+                      infoBoxOutput("agreementBox"),
+                      infoBoxOutput("validatedBox"),
+                      infoBoxOutput("pendingBox")
+                    ),
+                    fluidRow(
                       box(width = 12, dataTableOutput('results'))
-                    ))   
-          )
+                    )#fluidRow
+            )#tabItem dashboard   
+          )#tabItems
         } #fin if cuando el usuario es el administrador
   }
   else {
@@ -189,36 +200,23 @@ server <- function(input, output, session) {
   
   ######
   #User Expert 
-
-  #Ya no lo necesito, quité tab con texto plano
-  # filteredText<- reactive ({
-  #   unlist(articles %>% select(title,text) %>% filter(title %in% input$selectTitle) %>% select(text))
-  # })
-  # 
   
-  #uso selected Article Data
-  # filteredObjectiveSummary<- reactive ({
-  #   unlist(articles %>% select(title,summary) %>% filter(title %in% input$selectTitle) %>% select(summary))
-  # })
-
+  selectedArticleData <- reactive ({
+    articles %>% select(title,summary,url) %>% filter(title %in% input$selectTitle)
+  })
+  
   filteredGeneratedSummary<- reactive ({
     summaries[[1]][which(articles$title == input$selectTitle)]
   })
   
-    selectedArticleData <- reactive ({
-      articles %>% select(id,title,summary,url) %>% filter(title %in% input$selectTitle)
-    })
-  
-  output$text <- renderText(filteredText())
-  
   output$articleURL <- renderUI({
-    tags$a(
-      href = selectedArticleData()$url,
-      "Haga click aquí para leer el artículo",
-       target="_blank")
+    # tags$a(
+    #   href = selectedArticleData()$url,
+    #   "Haga click aquí para leer el artículo",
+    #    target="_blank")
+    HTML(paste0("<p><b>Para leer el artículo visite: </b><a href=",selectedArticleData()$url,' target="_blank">',selectedArticleData()$url,"</a></p>"))
   })
   
-  #output$objectiveSummary <- renderText(filteredObjectiveSummary())
   output$objectiveSummary <- renderText(selectedArticleData()$summary)
   
   output$generatedSummary <- renderText(filteredGeneratedSummary())
@@ -235,6 +233,7 @@ server <- function(input, output, session) {
     print(validation)
     write.table(validation,file="data/expertsValidations.csv",append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
     shinyalert(title="Validation stored",type="success") 
+    numCurrentValidations <<- numCurrentValidations + 1
     
     #update select input
     position <- validation$position
@@ -250,10 +249,49 @@ server <- function(input, output, session) {
   
   ######
   #User Admin
+  
+  validationsbyCoder <- expertsValidations %>% select(position,error,username_id) %>%  spread(username_id, error)
+  tableAdmin <- left_join(adminArticles,validationsbyCoder,by=c("row_num"="position"))  
+  set.seed(123)
+  krippAgreement <- krippendorffs.alpha(nominal, level = "nominal", control = list(parallel = FALSE),verbose = TRUE)
+  print(krippAgreement$alpha.hat)
+  
   output$results <-  DT::renderDataTable({
-    datatable(adminArticles, options = list(autoWidth = TRUE,
+    #no sé si leer, por si se conecta otro usuario......
+    # validationsbyCoder <- expertsValidations %>% select(position,error,username_id) %>% arrange(position)
+    # spreadTest <- validationsbyCoder %>%  spread(username_id, error)
+    # validationsbyCoder <- expertsValidations %>% select(position,error,username_id) %>%  spread(username_id, error)
+    # tableAdmin <- left_join(adminArticles,validationsbyCoder,by=c("row_num"="position"))
+    #nrow(tableAdmin) #ok, todas las filas
+    datatable(tableAdmin[-2,], options = list(autoWidth = TRUE,
                                             searching = FALSE))
   })
   
+  output$agreementBox <- renderInfoBox({
+    infoBox(
+      "Agreement", 
+      round(krippAgreement$alpha.hat,2), 
+      icon = icon("fal fa-handshake"),
+      color = "purple"
+    )
+  })
+  
+  output$validatedBox <- renderInfoBox({
+    infoBox(
+      "Validated Articles", 
+      nrow(validationsbyCoder), 
+      icon = icon("fal fa-check"),   # ("glyphicon-check", lib = "glyphicon"),
+      color = "olive"
+    )
+  })
+  
+  output$pendingBox <- renderInfoBox({
+    infoBox(
+      "Pending Articles", 
+      nrow(articles) - nrow(validationsbyCoder), 
+      icon = icon("fal fa-edit"), #("glyphicon-edit", lib = "glyphicon"),
+      color = "maroon"
+    )
+  })
   
   }
