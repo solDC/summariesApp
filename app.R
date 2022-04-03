@@ -11,10 +11,7 @@ library(shinyalert)
 
 reactiveConsole(TRUE)
 
-#source("~/shinyapp/summariesApp/aux.R")
-
-setwd("~/shinyApp/summariesApp/")
-
+#setwd("~/shinyapp/summariesApp")
 typeErrors <- list( "No contiene errores" = 1,
                     "Contiene información inconsistente con el artículo" = 2,
                     "Contiene alguna información que no puede ser inferida del artículo" = 3,
@@ -277,7 +274,12 @@ server <- function(input, output, session) {
   
   output$text <- renderText(filteredText())
   
-  output$articleURL <- renderUI(HTML(paste0("<p><b>Para leer el artículo visite: </b><a href=",selectedArticleData()$url,' target="_blank">',selectedArticleData()$url,"</a></p>"))) 
+  output$articleURL <- renderUI({
+    tags$a(
+      href = selectedArticleData()$url,
+      "Haga click aquí para leer el artículo",
+       target="_blank")
+  })
   
   output$objectiveSummary <- renderText(filteredObjectiveSummary())
   

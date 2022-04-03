@@ -1,0 +1,14 @@
+name: summariesApp
+title: summariesApp
+username:
+account: soldc
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 5979963
+bundleId: 5749299
+url: https://soldc.shinyapps.io/summariesApp/
+when: 1648727170.05856
+lastSyncTime: 1648727170.05857
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: .RData|aux/.DS_Store|aux/crearSummaries.R|aux/jsonToCSV.R|aux.R|data/.DS_Store|README.md|test-xlsum/articles.csv|test-xlsum/spanish_test.jsonl
