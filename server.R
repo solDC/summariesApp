@@ -9,7 +9,7 @@ library(tidyr)
 library(reactlog)
 library(shinyalert)
 library(DT)
-
+library(krippendorffsalpha)
 
 reactiveConsole(TRUE)
 
@@ -105,19 +105,22 @@ server <- function(input, output, session) {
   #TODO: condiciones de carrera lectura en simultaneo ¿? existe o solo escritura
   expertsValidations <- read.csv(file="data/expertsValidations.csv",header=TRUE)
   
+  #Generate list of titles to validate if user is expert
   observeEvent(input$login,{
     req(USER$login)
     if (USER$login == TRUE) {
-      #filter positions of validated articles by logged user 
-      validatedTitles <- expertsValidations %>% filter(username_id == input$userName) %>% select(position)
-      VALIDATIONS$positions <- as.data.frame(validatedTitles)  
-      if (length(VALIDATIONS$positions > 0)){
-        TITLES$userTitles <- articles[-VALIDATIONS$positions$position,3]
-      }
-      else{
-        TITLES$userTitles <- articles$title     
-      }
-    }
+      if(typeUser() == "expert"){
+        #filter positions of validated articles by logged user 
+        validatedTitles <- expertsValidations %>% filter(username_id == input$userName) %>% select(position)
+        VALIDATIONS$positions <- as.data.frame(validatedTitles)  
+        if (length(VALIDATIONS$positions > 0)){
+          TITLES$userTitles <- articles[-VALIDATIONS$positions$position,3]
+        }
+        else{
+          TITLES$userTitles <- articles$title     
+        }
+      } #if type user
+    }#if login true
     #print(head(VALIDATIONS$positions))
   })
 
@@ -243,7 +246,7 @@ server <- function(input, output, session) {
     TITLES$userTitles <- articles[-VALIDATIONS$positions$position,3] # ver de optimizar
     updateSelectInput(session,"selectTitle",choices=TITLES$userTitles)
     
-    #compute agreeement
+    #compute agreeement --> no, se computa a nivel global, no individual
     
   })
   
@@ -253,8 +256,20 @@ server <- function(input, output, session) {
   validationsbyCoder <- expertsValidations %>% select(position,error,username_id) %>%  spread(username_id, error)
   tableAdmin <- left_join(adminArticles,validationsbyCoder,by=c("row_num"="position"))  
   set.seed(123)
-  krippAgreement <- krippendorffs.alpha(nominal, level = "nominal", control = list(parallel = FALSE),verbose = TRUE)
-  print(krippAgreement$alpha.hat)
+  # krippTable <- data.matrix(tableAdmin[,-c(1:4)]) #all articles
+  # colnames(krippTable) <- NULL
+  # krippAgreement <- krippendorffs.alpha(krippTable, level = "nominal", control = list(bootit = 100, parallel = FALSE),verbose = TRUE) #validationbyCoder
+  # print(krippAgreement$alpha.hat)
+  # summary(krippAgreement)
+  
+  validationsbyCoderKripp <- data.matrix(validationsbyCoder[,-c(1)])
+  colnames(validationsbyCoderKripp) <- NULL
+  # validationsbyCoderKripp <- cbind(validationsbyCoderKripp,validationsbyCoderKripp[,1])
+  krippAgreementValidated <- krippendorffs.alpha(validationsbyCoderKripp, level = "nominal", control = list(bootit = 100, parallel = FALSE),verbose = TRUE) #validationbyCoder
+  print(krippAgreementValidated$alpha.hat)
+  #summary(krippAgreementValidated)
+  
+  #sum(is.na(x))
   
   output$results <-  DT::renderDataTable({
     #no sé si leer, por si se conecta otro usuario......
@@ -263,14 +278,14 @@ server <- function(input, output, session) {
     # validationsbyCoder <- expertsValidations %>% select(position,error,username_id) %>%  spread(username_id, error)
     # tableAdmin <- left_join(adminArticles,validationsbyCoder,by=c("row_num"="position"))
     #nrow(tableAdmin) #ok, todas las filas
-    datatable(tableAdmin[-2,], options = list(autoWidth = TRUE,
+    datatable(tableAdmin[-c(1,2),], options = list(autoWidth = TRUE,
                                             searching = FALSE))
   })
   
   output$agreementBox <- renderInfoBox({
     infoBox(
-      "Agreement", 
-      round(krippAgreement$alpha.hat,2), 
+      "Krippendorff's Alpha", 
+      round(krippAgreementValidated$alpha.hat,2), 
       icon = icon("fal fa-handshake"),
       color = "purple"
     )
