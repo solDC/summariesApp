@@ -8,11 +8,11 @@ library(reactlog)
 reactiveConsole(TRUE)
 
 #setwd("~/shinyapp/summariesApp")
+
 typeErrors <- list( "No contiene errores" = 1,
                     "No transmite el objetivo principal del texto" = 2,
-                    "Oración mal formada" = 3,
-                    "Contiene información inconsistente con el artículo" = 4,
-                    "Contiene alguna información que no puede ser inferida del artículo" = 5)
+                    "Contiene información inconsistente con el artículo" = 3,
+                    "Contiene alguna información que no puede ser inferida del artículo" = 4)
 
 #Load files --> only one time when app loads
 #TODO: para todos los ficheros: 
@@ -23,7 +23,6 @@ typeErrors <- list( "No contiene errores" = 1,
 credentials <- read.csv(file="data/users.csv")
 
 articles <- (read.csv("data/articles.csv")) #test dataset XL-Sum
-#names(articles)[2] <- "idArticle"
 
 #Articles and summaries are related by its position in the file 
 summaries <- as.data.frame(read_lines("data/resumenesTEST.txt"))
@@ -36,7 +35,7 @@ adminArticles <- cbind(adminArticles,summaries)
 names(adminArticles)[4] <- "generatedSummary"
 names(adminArticles)[3] <- "objectiveSummary"
 
-numCurrentValidations <- 0
+#numCurrentValidations <- 0 ---> para actualizar la info del userAdmin si hay más validaciones (leer expertsValidations)
 
 ############
 # Main login screen
