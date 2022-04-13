@@ -1,0 +1,14 @@
+name: summariesAppIO
+title: summariesAppIO
+username:
+account: soldc
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 6084441
+bundleId: 5796112
+url: https://soldc.shinyapps.io/summariesAppIO/
+when: 1649883252.87539
+lastSyncTime: 1649883252.8754
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: .RData|README.md
