@@ -93,8 +93,8 @@ server <- function(input, output, session) {
       }
       else{
         sidebarMenu(
-          menuItem('Gestionar "Validar Resúmenes"', tabName = "data", icon = icon("fal fa-database")),
-          menuItem('Dashboard "Validar Resúmenes"', tabName = "dashboard", icon = icon("tachometer-alt",lib = "font-awesome")),
+          menuItem('Gestionar "Validar Resúmenes"', tabName = "manageEvalSummaries", icon = icon("fal fa-database")),
+          menuItem('Dashboard "Validar Resúmenes"', tabName = "dashboardEvalSummaries", icon = icon("tachometer-alt",lib = "font-awesome")),
           menuItem('Gestionar Usuarios', tabName = "users", icon = icon("fal fa-user"))
           
         )
