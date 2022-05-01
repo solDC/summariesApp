@@ -1,50 +1,105 @@
+#summariesApp
 library(shiny)
 library(shinydashboard)
 library(shinyjs)
 library(dplyr)
 library(readr) #read txt more efficient
-library(reactlog)
+#library(reactlog) #reactive graph
 library(rdrop2)
+#library(httr)
+library(shinyalert)
+#library(log4r)
+#library(shinylogs)
 
 #reactiveConsole(TRUE)
+
+# source("logSetup.R")
+# log4r_info("Summaries App starts")
+
 
 # Done once to create Dropbox authentification tokens
 # token<-drop_auth()
 # saveRDS(token, "droptoken.rds")
 
-# Dropbox auth
+#Dropbox auth
 token <- readRDS("droptoken.rds")
-outputDir <- "summariesApp/responses"
 
+set.seed(123)
+
+# Set Dropbox directories
+outputDir <- "summariesApp/responses/"
+inputDir <- "summariesApp/data/"
+# logDir <- "summariesApp/log/"
+# 
+# track_usage(
+#   storage_mode = store_custom(FUN=function(logs) {
+#     str(logs, max.level=3)
+#     invisible()
+#   }) 
+# )
+
+
+# dropbox_endpoint <- httr::oauth_endpoint(authorize = "https://www.dropbox.com/oauth2/authorize?",
+#                                          access = "https://api.dropbox.com/oauth2/token")
+# 
+# dropbox_app <- httr::oauth_app(appname="summariesApp", key = "ao4u5xpe7wtfg2k",
+#                                secret = "z760md21t5v78xi")
+# dropbox_token <- httr::oauth2.0_token(endpoint=dropbox_endpoint, app=dropbox_app,
+#                                       cache = TRUE,
+#                                       query_authorize_extra = list(token_access_type= "offline"))
+
+
+
+# Utility function to load csv files from dropbox
+loadCSV <- function(path,fileName){
+  f <- tryCatch({
+    filePath <- paste0(path,fileName,".csv")
+    drop_read_csv(file=filePath,dest = tempdir(),dtoken=token)
+  },
+  error = function(e){
+    msg <- paste0("Error. Problema con el fichero ",filePath)
+    message(msg)
+    message(e)
+    return(NULL)
+  },
+  warning = function(w){
+    msg <- paste0("Warning causado por el fichero ",filePath)
+    message(msg)
+    message(w)
+  }  #, finally = {}
+  )
+}
+
+#Load files --> only one time when app loads
+credentials <- loadCSV(inputDir,"users")
+articles <- loadCSV(inputDir,"articles")
+summaries <- loadCSV(inputDir,"summaries") #Articles and summaries are related by its position in the file 
+  
+# Table used in the administrator dashboard
+tryCatch({
+  if(is.null(articles)){
+    message("El fichero con los artículos cuyos resúmenes hay que validar no se ha cargado.")
+  }
+  else{
+    adminArticles <- articles %>% select(title,summary)
+    adminArticles$row_num <- seq.int(nrow(adminArticles)) 
+    adminArticles <- adminArticles[,c(ncol(adminArticles),1:(ncol(adminArticles)-1))] #dejar ron_num como primera columna del dataset
+    if(is.null(summaries)){
+      message("El fichero con los resúmenes no se ha cargado.")
+    }
+    else{
+      adminArticles <- cbind(adminArticles,summaries)
+      names(adminArticles)[4] <- "generatedSummary"
+      names(adminArticles)[3] <- "objectiveSummary"  
+    }
+  }
+})
+
+# Type of Errors
 typeErrors <- list( "No contiene errores" = 1,
                     "No transmite el objetivo principal del texto" = 2,
                     "Contiene información inconsistente con el artículo" = 3,
                     "Contiene alguna información que no puede ser inferida del artículo" = 4)
-
-#Load files --> only one time when app loads
-#TODO: para todos los ficheros: 
-#       función que chequee si existe el fichero o 
-#       admin: que suba el fichero/diga donde está
-#       usuario normal: mensaje de error en caso contrario
-
-credentials <- drop_read_csv(file="summariesApp/data/users.csv",dest = tempdir(),dtoken=token) #read.csv(file="data/users.csv")
-
-articles <- drop_read_csv(file="summariesApp/data/articles.csv",dest = tempdir(),dtoken=token)#read.csv("data/articles.csv") #test dataset XL-Sum
-
-#Articles and summaries are related by its position in the file 
-#summaries <- as.data.frame(read_lines("data/resumenesTEST.txt"))
-summaries <- drop_read_csv(file="summariesApp/data/summaries.csv",dest = tempdir(),dtoken=token)
-
-
-# Información base para tabla administrador
-adminArticles <- articles %>% select(title,summary)
-adminArticles$row_num <- seq.int(nrow(adminArticles)) 
-adminArticles <- adminArticles[,c(ncol(adminArticles),1:(ncol(adminArticles)-1))] #dejar ron_num como primera columna del dataset
-adminArticles <- cbind(adminArticles,summaries)
-names(adminArticles)[4] <- "generatedSummary"
-names(adminArticles)[3] <- "objectiveSummary"
-
-#numCurrentValidations <- 0 ---> para actualizar la info del userAdmin si hay más validaciones (leer expertsValidations)
 
 ############
 # Main login screen
@@ -76,27 +131,7 @@ loginpage <- div(id = "loginpage", style = "width: 500px; max-width: 100%; margi
                    ))
 )
 
-saveData <- function(data) {
-  data <- t(data)
-  # Create a unique file name
-  fileName <- sprintf("%s_%s.csv", as.integer(Sys.time()), digest::digest(data))
-  # Write the data to a temporary file locally
-  filePath <- file.path(tempdir(), fileName)
-  write.csv(data, filePath, row.names = FALSE, quote = TRUE)
-  # Upload the file to Dropbox
-  drop_upload(filePath, path = outputDir)
-}
 
-# 
-# loadData <- function() {
-#   # Read all the files into a list
-#   filesInfo <- drop_dir(outputDir)
-#   filePaths <- filesInfo$path_display
-#   data <- lapply(filePaths, drop_read_csv, stringsAsFactors = FALSE)
-#   # Concatenate all data together into one data.frame
-#   data <- do.call(rbind, data)
-#   data
-# }
 
 
 #runApp(list(ui = ui, server = server), launch.browser = TRUE) #

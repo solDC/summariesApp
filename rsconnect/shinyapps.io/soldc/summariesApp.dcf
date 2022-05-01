@@ -1,0 +1,14 @@
+name: summariesApp
+title: summariesApp
+username:
+account: soldc
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 5979963
+bundleId: 5799518
+url: https://soldc.shinyapps.io/summariesApp/
+when: 1649960558.28961
+lastSyncTime: 1649960558.28962
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: fileUtilityFunctions.r
