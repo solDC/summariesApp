@@ -94,9 +94,8 @@ server <- function(input, output, session) {
       else{
         sidebarMenu(
           menuItem('Gestionar "Validar Resúmenes"', tabName = "manageEvalSummaries", icon = icon("fal fa-database")),
-          menuItem('Dashboard "Validar Resúmenes"', tabName = "dashboardEvalSummaries", icon = icon("tachometer-alt",lib = "font-awesome")),
+          menuItem('Dashboard "Validar Resúmenes"', tabName = "dashboadEvalSummaries", icon = icon("tachometer-alt",lib = "font-awesome")),
           menuItem('Gestionar Usuarios', tabName = "users", icon = icon("fal fa-user"))
-          
         )
       }
     }
@@ -107,8 +106,9 @@ server <- function(input, output, session) {
   #articles he validated in its previous session
   
   #expertsValidations <- read.csv(file="responses/expertsValidations.csv",header=TRUE) #----> HARCELO EN EL LOGIN EN LUGAR DE SUELTO
-
-  expertsValidations <- loadCSV(outputDir,"expertsValidations")
+  
+  fn <- paste0(conf$fileNameResponses,".csv")
+  expertsValidations <- loadCSV(outputDir,fn)#,"expertsValidations")#
   #drop_read_csv(file="summariesApp/responses/expertsValidations.csv",dest = tempdir(),dtoken=token,header=TRUE)
 
 
@@ -152,6 +152,7 @@ server <- function(input, output, session) {
   # Body Render UI depending on logged user
   output$body <- renderUI({
     if (USER$login == TRUE) {
+      req(conf)
       if(typeUser() == "expert"){
         tabItems(
           tabItem(tabName = "information",
@@ -174,10 +175,7 @@ server <- function(input, output, session) {
                   ),
                   fluidRow(
                     box(
-                      width=6, title="Resumen objetivo",status = "primary", solidHeader = TRUE,
-                      textOutput('objectiveSummary')),
-                    box(
-                      width=6, title="Resumen generado",status = "danger", solidHeader = TRUE,
+                      width=8, title="Resumen generado",status = "primary", solidHeader = TRUE,
                       textOutput('generatedSummary'))
                   ),
                   fluidRow(
@@ -199,9 +197,6 @@ server <- function(input, output, session) {
                                      choices = list("Verdadero" = 1, "Falso" = 2),
                                      selected = character(0))
                       ), #conditional panel
-                      selectInput("selectError", label = ("Seleccione, si existe, el tipo de error en el resumen generado:"),
-                                  choices = typeErrors,
-                                  selected = character(0)),
                       actionButton('validateButton',"Validar Resumen",class="btn-primary"),
                       br())
                   ) #última fluidRow
@@ -210,15 +205,34 @@ server <- function(input, output, session) {
         }#fin if si el usuario es el expert
         else{ #Usuario admin
           tabItems(
-            tabItem(tabName = "manageEvalSummaries",
-                    h4('Gestión de "Evaluar Resúmenes"'),
+            tabItem(tabName = "manageEvalSummaries", class = "active",
                     fluidRow(
-                      column(4,
-                             sliderInput("sample",label=h3('Seleccione el tamaño de la muestra a validar [en %]'),min=1, max=100, value = 5))
-                    )
+                      box(title="Tamaño de la muestra a validar", width = 8, solidHeader = TRUE,status = "primary",
+                        p("El tamaño actual es:"), verbatimTextOutput("currentSampleSize"),
+                        sliderInput("sample",label='Seleccione el tamaño de la muestra a validar [en %]',
+                                min=0, max=100, value = conf$sampleSize),
+                        actionButton("saveSample", label= "Guardar")
+                        )),
+                    fluidRow(
+                      box(title="Fichero de resúmenes a validar", width = 8, solidHeader = TRUE,status = "primary",
+                          p("Nombre del fichero actual:"),verbatimTextOutput("currentSummariesFile"),
+                          radioButtons("changeSummariesFile",label="Desea cambiar el fichero de resúmenes a validar ",
+                                 choices=list("Yes" = 1, "No" = 2),
+                                 selected = 2),
+                          conditionalPanel(
+                            condition = "input.changeSummariesFile == 1",
+                            fileInput("newSummariesFile",label="Subir el nuevo fichero con los resúmenes a validar (solo csv)",
+                                      multiple = FALSE, accept = ".csv")
+                          ),#conditional Panel
+                          actionButton("saveSummariesFile", label= "Guardar")
+                    )),
+                    verbatimTextOutput("currentNameFileResponses")
                     
+                    #textInput("responsesFileName",label="Ingrese el nombre del fichero donde se guardaran las respuestas de las validaciones", 
+                    #             value = "expertsValidations")
+                    # 
             ),#tabItem manageEvalSummaries
-            tabItem(tabName ="dashboadEvalSummaries", class = "active",
+            tabItem(tabName ="dashboadEvalSummaries",
                     fluidRow(
                       infoBoxOutput("agreementBox"),
                       infoBoxOutput("validatedBox"),
@@ -291,8 +305,10 @@ server <- function(input, output, session) {
     validation$username_id <- input$userName
     validation$title <- input$selectTitle
     validation$position <- which(articles$title == input$selectTitle)
-    validation$summaryOK <- input$question1
-    validation$error <- input$selectError
+    validation$question1 <- input$question1
+    validation$question2 <- input$question2
+    validation$question3 <- input$question3
+    
     print(validation)
     
     #tryCatch
@@ -346,6 +362,53 @@ server <- function(input, output, session) {
 
 ######## Admin Dashboard
 
+  output$currentSampleSize <- renderPrint({
+    conf$sampleSize
+  })
+  
+  output$currentSummariesFile <- renderPrint({
+    conf$fileSummaries
+  })
+  
+  output$currentNameFileResponses <- renderPrint({
+    conf$fileNameResponses
+  })
+  
+  observeEvent(input$saveSample,{
+    conf$sampleSize <<- input$sample
+    print(conf$sampleSize)
+    filePath <- file.path(tempdir(),"conf.csv") 
+    write.table(conf,file=filePath,append = FALSE,sep=',',row.names = FALSE)
+    drop_upload(filePath,inputDir)
+    shinyalert(title="Configuración actualizada",type="success")
+    print(conf)
+  })
+  
+  observeEvent(input$saveSummariesFile,{
+    if(input$changeSummariesFile == 1){ #se podría verificar qeu tenga el formato correcto
+      if(input$newSummariesFile$type == "text/csv"){
+        conf$fileSummaries <<- input$newSummariesFile$name
+        conf$fileSummaries <- input$newSummariesFile$name
+        
+        filePathConf <- file.path(tempdir(),"conf.csv") 
+        write.table(conf,file=filePathConf,append = FALSE,sep=',',row.names = FALSE)
+        drop_upload(filePathConf,inputDir)
+        print(input$newSummariesFile$datapath)
+        dir.create("tempdir")
+        file.copy(input$newSummariesFile$datapath, file.path("tempdir",input$newSummariesFile$name))
+        drop_upload(paste0("tempdir/",input$newSummariesFile$name),inputDir, mode = "overwrite") #no hace overwrite
+        summaries <- loadCSV(inputDir,conf$fileSummaries)
+        shinyalert(title="Configuración actualizada",type="success")
+      }
+      else{
+        shinyalert(title="Error en el tipo de fichero seleccionado, no se subirá el nuevo fichero",type="error")
+      }
+    }
+    print(conf) 
+    })
+
+  
+  
   output$agreementBox <- renderInfoBox({
     infoBox(
       "Krippendorff's Alpha",

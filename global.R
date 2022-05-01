@@ -18,8 +18,8 @@ library(shinyalert)
 
 
 # Done once to create Dropbox authentification tokens
-# token<-drop_auth()
-# saveRDS(token, "droptoken.rds")
+#token<-drop_auth()
+#saveRDS(token, "droptoken.rds")
 
 #Dropbox auth
 token <- readRDS("droptoken.rds")
@@ -29,31 +29,11 @@ set.seed(123)
 # Set Dropbox directories
 outputDir <- "summariesApp/responses/"
 inputDir <- "summariesApp/data/"
-# logDir <- "summariesApp/log/"
-# 
-# track_usage(
-#   storage_mode = store_custom(FUN=function(logs) {
-#     str(logs, max.level=3)
-#     invisible()
-#   }) 
-# )
-
-
-# dropbox_endpoint <- httr::oauth_endpoint(authorize = "https://www.dropbox.com/oauth2/authorize?",
-#                                          access = "https://api.dropbox.com/oauth2/token")
-# 
-# dropbox_app <- httr::oauth_app(appname="summariesApp", key = "ao4u5xpe7wtfg2k",
-#                                secret = "z760md21t5v78xi")
-# dropbox_token <- httr::oauth2.0_token(endpoint=dropbox_endpoint, app=dropbox_app,
-#                                       cache = TRUE,
-#                                       query_authorize_extra = list(token_access_type= "offline"))
-
-
 
 # Utility function to load csv files from dropbox
 loadCSV <- function(path,fileName){
   f <- tryCatch({
-    filePath <- paste0(path,fileName,".csv")
+    filePath <- paste0(path,fileName) #,".csv")
     drop_read_csv(file=filePath,dest = tempdir(),dtoken=token)
   },
   error = function(e){
@@ -70,11 +50,14 @@ loadCSV <- function(path,fileName){
   )
 }
 
+conf <- loadCSV(inputDir,"conf.csv")
+
 #Load files --> only one time when app loads
-credentials <- loadCSV(inputDir,"users")
-articles <- loadCSV(inputDir,"articles")
-summaries <- loadCSV(inputDir,"summaries") #Articles and summaries are related by its position in the file 
-  
+credentials <- loadCSV(inputDir,"users.csv")
+articles <- loadCSV(inputDir,"articles.csv")
+#summaries <- loadCSV(inputDir,"summaries") #Articles and summaries are related by its position in the file 
+summaries <- loadCSV(inputDir,conf$fileSummaries) #Articles and summaries are related by its position in the file 
+
 # Table used in the administrator dashboard
 tryCatch({
   if(is.null(articles)){
@@ -94,12 +77,6 @@ tryCatch({
     }
   }
 })
-
-# Type of Errors
-typeErrors <- list( "No contiene errores" = 1,
-                    "No transmite el objetivo principal del texto" = 2,
-                    "Contiene información inconsistente con el artículo" = 3,
-                    "Contiene alguna información que no puede ser inferida del artículo" = 4)
 
 ############
 # Main login screen
