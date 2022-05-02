@@ -7,7 +7,7 @@ library(sodium) #encrypt passwords
 library(tidyverse)
 library(dplyr)
 library(tidyr)
-library(reactlog) #reactive graph
+#library(reactlog) #reactive graph
 library(shinyalert)
 library(DT)
 library(krippendorffsalpha)
@@ -16,8 +16,39 @@ library(ggplot2)
 library(rdrop2)
 #library(httr)
 
-reactiveConsole(TRUE)
+#reactiveConsole(TRUE)
 
+# Main login screen
+#####
+loginpage <- div(id = "loginpage", style = "width: 500px; max-width: 100%; margin: 0 auto; padding: 20px;",
+                 wellPanel(
+                   tags$h2("LOG IN", class = "text-center", style = "padding-top: 0;color:#333; font-weight:600;"),
+                   textInput("userName", placeholder="Username", label = tagList(icon("user"), "Username")),
+                   passwordInput("passwd", placeholder="Password", label = tagList(icon("unlock-alt"), "Password")),
+                   br(),
+                   div(
+                     style = "text-align: center;",
+                     actionButton("login", "SIGN IN", style = "color: white; background-color:#3c8dbc;
+                                 padding: 10px 15px; width: 150px; cursor: pointer;
+                                 font-size: 18px; font-weight: 600;"),#,icon=icon("far fa-sign-in",lib= "font-awesome")
+                     shinyjs::hidden(
+                       div(id = "nomatch",
+                           tags$p("Oops! Incorrect username or password!",
+                                  style = "color: red; font-weight: 600; 
+                                            padding-top: 5px;font-size:16px;", 
+                                  class = "text-center"))),
+                     br(),
+                     #a("Create new account"),
+                     br(),
+                     tags$code("Username: admin  Password: adminpass"),
+                     br(),
+                     tags$code("Username: user1  Password: pass1"),
+                     br(),
+                     tags$code("Username: user2  Password: pass2")
+                   ))
+)
+
+#####
 server <- function(input, output, session) {
 
   #LOGIN
@@ -101,15 +132,6 @@ server <- function(input, output, session) {
     }
   })
 
-  #I read it each time a user logs so the articles he needs to check are up to date
-  #if not it he disconnects and log on again he would see all the
-  #articles he validated in its previous session
-  
-  #expertsValidations <- read.csv(file="responses/expertsValidations.csv",header=TRUE) #----> HARCELO EN EL LOGIN EN LUGAR DE SUELTO
-  
-  fn <- paste0(conf$fileNameResponses,".csv")
-  expertsValidations <- loadCSV(outputDir,fn)#,"expertsValidations")#
-  #drop_read_csv(file="summariesApp/responses/expertsValidations.csv",dest = tempdir(),dtoken=token,header=TRUE)
 
 
   ######
@@ -124,30 +146,117 @@ server <- function(input, output, session) {
   userTitles <- data.frame(matrix(ncol=1,nrow=0))
   colnames(userTitles) <- c("title")
   TITLES <- reactiveValues(userTitles = userTitles) #TITLES$userTitles
-
+  
+  # Reactive Value to store the the current name of the file of summaries that are being validated
+  SUMM_FILE <- reactiveValues(fileName = conf$fileSummaries) #SUMM_FILE$fileName
+  
+  control <- FALSE #
+  
+  #Read it each time a user logs so the articles he needs to check are up to date. If not it he disconnects, and the apps doesn't stops and 
+  # log on again he would see all the articles he validated in its previous session
+    tryCatch({
+      fn <- paste0(conf$fileNameResponses,".csv")
+      x <- drop_search(fn)
+      print(x)
+      if(x$start == 0){
+        msg <- paste0("El fichero ",fn, " con las validaciones de los usuarios no existe y se va a crear uno vacío.")
+        message(msg)
+        message(w)
+        # shinyalert(title="Salga de la aplicación",
+        #            text=msg,
+        #            type="error")
+      }
+      else{
+        expertsValidations <- loadCSV(outputDir,fn)
+        control <- TRUE
+      }
+    })  
+    
+  
   #Generate list of titles to validate if user is expert
   observeEvent(input$login,{
     req(USER$login)
     if (USER$login == TRUE) {
       if(typeUser() == "expert"){
         #filter positions of validated articles by logged user
-        validatedTitles <- expertsValidations %>% filter(username_id == input$userName) %>% select(position)
-        VALIDATIONS$positions <- as.data.frame(validatedTitles)
-        if (length(VALIDATIONS$positions > 0)){
-          TITLES$userTitles <- articles[-VALIDATIONS$positions$position,3]
+        if(control){
+          validatedTitles <- expertsValidations %>% filter(username_id == input$userName) %>% select(position)
+          VALIDATIONS$positions <- as.data.frame(validatedTitles)
+          if (length(VALIDATIONS$positions > 0)){
+           TITLES$userTitles <- articles[-VALIDATIONS$positions$position,3]
+          }
+          else{
+            TITLES$userTitles <- articles$title
+          }
         }
         else{
-          TITLES$userTitles <- articles$title
+          msg <- paste0("El fichero ",fn, " con las validaciones de los usuarios no existe y no se puede cargar. Consulte con el administrador.")
+          message(msg)
+          shinyalert(title="Salga de la aplicación",
+                     text=msg,
+                     type="error")
         }
-      } #if type user
+      } #if type user expert
+      else{ #user admin, cargo tabla con respuestas de usuarios para ver estado
+        # Table used in the administrator dashboard
+        tryCatch({
+          if(is.null(articles)){
+            message("El fichero con los artículos cuyos resúmenes hay que validar no se ha cargado.")
+          }
+          else{
+            adminArticles <- articles %>% select(title,summary)
+            adminArticles$row_num <- seq.int(nrow(adminArticles)) 
+            adminArticles <- adminArticles[,c(ncol(adminArticles),1:(ncol(adminArticles)-1))] #dejar ron_num como primera columna del dataset
+            if(is.null(summaries)){
+              message("El fichero con los resúmenes no se ha cargado.")
+            }
+            else{
+              adminArticles <- cbind(adminArticles,summaries)
+              names(adminArticles)[4] <- "generatedSummary"
+              names(adminArticles)[3] <- "objectiveSummary"  
+            }
+          }
+        })
+        if(control){
+          validationsbyUser <- expertsValidations %>% select(position,error,username_id) %>%  spread(username_id, error)
+          aux <- validationsbyUser %>% select(-position)
+          numValid <- apply(X=!is.na(aux),MARGIN = 1, FUN= sum) #rowSums(!is.na(validationsbyUser))
+          numValid <- cbind(numValid,validationsbyUser$position)
+          colnames(numValid)[2] <- "position"
+          tableAdmin <- left_join(adminArticles,as.data.frame(numValid),by=c("row_num"="position"))
+          tableAdmin <- left_join(tableAdmin,validationsbyUser,by=c("row_num"="position"))
+          #colnames(tableAdmin)[5] <- "numberValidations"
+          #set.seed(123) en global
+          # krippTable <- data.matrix(tableAdmin[,-c(1:4)]) #all articles
+          # colnames(krippTable) <- NULL
+          # krippAgreement <- krippendorffs.alpha(krippTable, level = "nominal", control = list(bootit = 100, parallel = FALSE),verbose = TRUE) #validationbyCoder
+          # print(krippAgreement$alpha.hat)
+          # summary(krippAgreement)
+          
+          validationsbyUserKripp <- data.matrix(aux) #(validationsbyUser[,-c(1)])
+          colnames(validationsbyUserKripp) <- NULL
+          # validationsbyUserKripp <- cbind(validationsbyUserKripp,validationsbyUserKripp[,1]) #Agrego otra columna igual a ver si mejora el coeficiente
+          krippAgreementValidated <- krippendorffs.alpha(validationsbyUserKripp,
+                                                         level = "nominal",
+                                                         control = list(bootit = 100, parallel = FALSE),
+                                                         verbose = TRUE) #validationbyCoder
+          print(krippAgreementValidated$alpha.hat)
+          #summary(krippAgreementValidated)
+        }
+        else{
+          msg <- paste0("El fichero ",fn, " con las validaciones de los usuarios no existe y no se pueden realizar los cálculos para ver
+                   el estado de validación de resúmenes.")
+          message(msg)
+          shinyalert(title="Salga de la aplicación",
+                     text=msg,
+                     type="error")
+        }
+      }
     }#if login true
     #print(head(VALIDATIONS$positions))
   })
 
-#   #No me funciona:
-#   #userTitles <- articles  %>% slice(1:nrow(summaries)) %>%  filter(username = Username()) %>%select(title)
-#   #updateSelectizeInput(session,'selectTitle',choices = userTitles(), server=TRUE)
-#   
+ 
   ######
   # Body Render UI depending on logged user
   output$body <- renderUI({
@@ -207,14 +316,16 @@ server <- function(input, output, session) {
           tabItems(
             tabItem(tabName = "manageEvalSummaries", class = "active",
                     fluidRow(
-                      box(title="Tamaño de la muestra a validar", width = 8, solidHeader = TRUE,status = "primary",
+                      box(title="Tamaño de la muestra a validar", width = 12, solidHeader = TRUE,status = "primary",
+                        box(width=6,
                         p("El tamaño actual es:"), verbatimTextOutput("currentSampleSize"),
                         sliderInput("sample",label='Seleccione el tamaño de la muestra a validar [en %]',
                                 min=0, max=100, value = conf$sampleSize),
-                        actionButton("saveSample", label= "Guardar")
+                        actionButton("saveSample", label= "Guardar"))
                         )),
                     fluidRow(
-                      box(title="Fichero de resúmenes a validar", width = 8, solidHeader = TRUE,status = "primary",
+                      box(width = 12, title = "Gestión de ficheros",solidHeader = TRUE,status = "primary",
+                        box(title="Fichero de resúmenes a validar", width = 6, #height = 320,
                           p("Nombre del fichero actual:"),verbatimTextOutput("currentSummariesFile"),
                           radioButtons("changeSummariesFile",label="Desea cambiar el fichero de resúmenes a validar ",
                                  choices=list("Yes" = 1, "No" = 2),
@@ -223,15 +334,19 @@ server <- function(input, output, session) {
                             condition = "input.changeSummariesFile == 1",
                             fileInput("newSummariesFile",label="Subir el nuevo fichero con los resúmenes a validar (solo csv)",
                                       multiple = FALSE, accept = ".csv")
-                          ),#conditional Panel
-                          actionButton("saveSummariesFile", label= "Guardar")
-                    )),
-                    verbatimTextOutput("currentNameFileResponses")
-                    
-                    #textInput("responsesFileName",label="Ingrese el nombre del fichero donde se guardaran las respuestas de las validaciones", 
-                    #             value = "expertsValidations")
-                    # 
-            ),#tabItem manageEvalSummaries
+                          )#conditional Panel 
+                        ),#box fichero de resúmenes a validar
+                        box(title = "Nombre del fichero para las respuestas de los evaluadores", 
+                            width = 6, #height = 320,
+                            p("Nombre del fichero actual:"),verbatimTextOutput("currentFileNameResponses"),
+                            textInput("responsesFileName",label="Ingrese el nombre del fichero donde se guardaran las respuestas de las 
+                                      validaciones para el nuevo fichero de resúmenes", 
+                                      value = conf$fileNameResponses)
+                        ), #box nombre fichero de respuestas
+                      box(width=12,
+                        actionButton("saveSummariesFile", label= "Guardar"))
+                      ))#big box and fluidRow
+             ),#tabItem manageEvalSummaries
             tabItem(tabName ="dashboadEvalSummaries",
                     fluidRow(
                       infoBoxOutput("agreementBox"),
@@ -332,46 +447,23 @@ server <- function(input, output, session) {
   ######
   #User Admin
 
-  validationsbyUser <- expertsValidations %>% select(position,error,username_id) %>%  spread(username_id, error)
-  aux <- validationsbyUser %>% select(-position)
-  numValid <- apply(X=!is.na(aux),MARGIN = 1, FUN= sum) #rowSums(!is.na(validationsbyUser))
-  numValid <- cbind(numValid,validationsbyUser$position)
-  colnames(numValid)[2] <- "position"
-  tableAdmin <- left_join(adminArticles,as.data.frame(numValid),by=c("row_num"="position"))
-  tableAdmin <- left_join(tableAdmin,validationsbyUser,by=c("row_num"="position"))
-  #colnames(tableAdmin)[5] <- "numberValidations"
-  #set.seed(123) en global
-  # krippTable <- data.matrix(tableAdmin[,-c(1:4)]) #all articles
-  # colnames(krippTable) <- NULL
-  # krippAgreement <- krippendorffs.alpha(krippTable, level = "nominal", control = list(bootit = 100, parallel = FALSE),verbose = TRUE) #validationbyCoder
-  # print(krippAgreement$alpha.hat)
-  # summary(krippAgreement)
-
-  validationsbyUserKripp <- data.matrix(aux) #(validationsbyUser[,-c(1)])
-  colnames(validationsbyUserKripp) <- NULL
-  # validationsbyUserKripp <- cbind(validationsbyUserKripp,validationsbyUserKripp[,1]) #Agrego otra columna igual a ver si mejora el coeficiente
-  krippAgreementValidated <- krippendorffs.alpha(validationsbyUserKripp,
-                                                 level = "nominal",
-                                                 control = list(bootit = 100, parallel = FALSE),
-                                                 verbose = TRUE) #validationbyCoder
-  print(krippAgreementValidated$alpha.hat)
-  #summary(krippAgreementValidated)
 
 
 
 
-######## Admin Dashboard
+
+######## Admin 
 
   output$currentSampleSize <- renderPrint({
-    conf$sampleSize
+    input$sample
   })
-  
+
   output$currentSummariesFile <- renderPrint({
-    conf$fileSummaries
+    SUMM_FILE$fileName
   })
   
-  output$currentNameFileResponses <- renderPrint({
-    conf$fileNameResponses
+  output$currentFileNameResponses <- renderPrint({
+    input$responsesFileName #conf$fileNameResponses
   })
   
   observeEvent(input$saveSample,{
@@ -385,15 +477,14 @@ server <- function(input, output, session) {
   })
   
   observeEvent(input$saveSummariesFile,{
-    if(input$changeSummariesFile == 1){ #se podría verificar qeu tenga el formato correcto
+    if(input$changeSummariesFile == 1){ #se podría verificar que tenga el formato correcto
       if(input$newSummariesFile$type == "text/csv"){
         conf$fileSummaries <<- input$newSummariesFile$name
-        conf$fileSummaries <- input$newSummariesFile$name
-        
+        SUMM_FILE$fileName <- input$newSummariesFile$name
+        conf$fileNameResponses <<- input$responsesFileName
         filePathConf <- file.path(tempdir(),"conf.csv") 
         write.table(conf,file=filePathConf,append = FALSE,sep=',',row.names = FALSE)
         drop_upload(filePathConf,inputDir)
-        print(input$newSummariesFile$datapath)
         dir.create("tempdir")
         file.copy(input$newSummariesFile$datapath, file.path("tempdir",input$newSummariesFile$name))
         drop_upload(paste0("tempdir/",input$newSummariesFile$name),inputDir, mode = "overwrite") #no hace overwrite
@@ -402,12 +493,11 @@ server <- function(input, output, session) {
       }
       else{
         shinyalert(title="Error en el tipo de fichero seleccionado, no se subirá el nuevo fichero",type="error")
+        message("No se puede cargar el fichero seleccionado porque no es de tipo csv")
       }
     }
-    print(conf) 
+    #print(conf) 
     })
-
-  
   
   output$agreementBox <- renderInfoBox({
     infoBox(
@@ -437,7 +527,6 @@ server <- function(input, output, session) {
   })
 
   output$OKKO_plot <-renderPlot({
-
     df <- expertsValidations %>%  select(summaryOK) %>% count(summaryOK) %>% mutate(percentage = paste0(round(n/sum(n)*100),"%"))
     df <- df %>% mutate(pos = cumsum(n) -0.5 * n)
     df$summaryOK <- as.factor(df$summaryOK)
@@ -456,17 +545,6 @@ server <- function(input, output, session) {
       theme_void()
   })
 
-  output$typeErrorsCountPlot <- renderPlot({
-
-    ggplot(expertsValidations,aes(x= as.factor(error),fill=as.factor(error))) +
-      geom_bar() +
-      scale_fill_brewer(palette = "Set2",name= "Error", labels=names(typeErrors)) +
-      theme(legend.position="bottom") +
-      geom_text(stat='count',aes(label=..count..),vjust=-0.7, size=3) +
-      labs(x="Types of error",title="Number of validations by type of error") +
-      theme(panel.background=element_blank(),panel.border=element_blank(),panel.grid.major=element_blank(),
-            panel.grid.minor=element_blank(),plot.background=element_blank())
-  })
 
   output$results <-  DT::renderDataTable({
     #no sé si leer, por si se conecta otro usuario......
@@ -478,17 +556,6 @@ server <- function(input, output, session) {
     datatable(tableAdmin[,-c(1)], options = list(autoWidth = TRUE,
                                                  searching = FALSE))
   })
-
-
-
-  # output$usersValidations <- renderPlot({
-  #   colMain <- colorRampPalette(brewer.pal(8, "Blues"))(4)
-  #   heatmap(as.matrix(tableAdmin[,-c(1:5)]),Colv = NA, Rowv = NA, scale="column",col = colMain,
-  #           xlab="Experts",ylab="Summaries",main="Type of Error of summaries by Users",
-  #           labRow=substr(tableAdmin$title,1,8))
-  #   #heatmap(heatmapData,Colv = NA, Rowv = NA, scale="column",col = colMain)
-  #   legend(x="bottomright",legend = names(typeErrors),fill=colMain)
-  # })
 
   output$usersValidations <- renderPlot({
     #heatmapData <- tableAdmin[!is.na(tableAdmin$numValid),-c(1,3:5)]
