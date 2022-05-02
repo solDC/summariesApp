@@ -341,7 +341,7 @@ server <- function(input, output, session) {
     }
     else{
       shinyalert(title="Salga de la aplicación",
-                 text="No se ha cargado el fichero con los artículos cuyos 
+                 text="No se ha cargado el fichero con los artículos cuyos
                  resúmenes hay que validar",
                  type="error")
     }
@@ -356,7 +356,7 @@ server <- function(input, output, session) {
                  text="No se han cargado el fichero con los
                  resúmenes a validar",
                  type="error")
-    }  
+    }
   })
 
   output$articleURL <- renderUI({
@@ -368,13 +368,13 @@ server <- function(input, output, session) {
   observeEvent(input$validateButton,{
     #create structure to save validation
     num <- length(expertsValidationsColNames)
-    validation <- data.frame(matrix(ncol=num,nrow=1)) 
-    colnames(validation) <- expertsValidationsColNames 
+    validation <- data.frame(matrix(ncol=num,nrow=1))
+    colnames(validation) <- expertsValidationsColNames
     #save values
     validation$usernameId <- input$userName
     validation$position <- which(articles$title == input$selectTitle)
     validation$question1 <- input$question1
-    #if the person changes his mind about question 1 after answering question 2 and 3, 
+    #if the person changes his mind about question 1 after answering question 2 and 3,
     #values of questions 2 and 3 need to be reseted
     if(input$question1 == 2){
       validation$question2 <- NA
@@ -382,22 +382,21 @@ server <- function(input, output, session) {
     }
     else{
       validation$question2 <- input$question2
-      validation$question3 <- input$question3      
+      validation$question3 <- input$question3
     }
     validation$timeStamp <- Sys.time()
     validation$summariesNameFile <- conf$fileSummaries
     validation$articlesNameFile <- conf$fileArticles
     validation$articleTitle <- input$selectTitle
     print(validation)
-    
+
     #tryCatch
     #write.table(validation,file="data/expertsValidations.csv",append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
-    filePath <- file.path(tempdir(),"validations.csv") 
+    filePath <- file.path(tempdir(),"validations.csv")
     write.table(validation,file=filePath,append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
     drop_upload(filePath,outputDir) #"summariesApp/responses"
-    
+
     shinyalert(title="Validation stored",type="success")
-    # numCurrentValidations <<- numCurrentValidations + 1
 
     #update select input title list pending validation by user
     position <- validation$position
@@ -411,30 +410,31 @@ server <- function(input, output, session) {
   ######
   #User Admin
   if(nrow(expertsValidations) > 0){
-    validationsbyUser <- expertsValidations %>% select(position,usernameId) %>%  spread(usernameId)
-    aux <- validationsbyUser %>% select(-position)
-    numValid <- apply(X=!is.na(aux),MARGIN = 1, FUN= sum) #rowSums(!is.na(validationsbyUser))
-    numValid <- cbind(numValid,validationsbyUser$position)
-    colnames(numValid)[2] <- "position"
-    tableAdmin <- left_join(adminArticles,as.data.frame(numValid),by=c("row_num"="position"))
-    tableAdmin <- left_join(tableAdmin,validationsbyUser,by=c("row_num"="position"))
-    #colnames(tableAdmin)[5] <- "numberValidations"
-    #set.seed(123) en global
-    # krippTable <- data.matrix(tableAdmin[,-c(1:4)]) #all articles
-    # colnames(krippTable) <- NULL
-    # krippAgreement <- krippendorffs.alpha(krippTable, level = "nominal", control = list(bootit = 100, parallel = FALSE),verbose = TRUE) #validationbyCoder
-    # print(krippAgreement$alpha.hat)
-    # summary(krippAgreement)
-    
-    validationsbyUserKripp <- data.matrix(aux) #(validationsbyUser[,-c(1)])
-    colnames(validationsbyUserKripp) <- NULL
-    # validationsbyUserKripp <- cbind(validationsbyUserKripp,validationsbyUserKripp[,1]) #Agrego otra columna igual a ver si mejora el coeficiente
-    krippAgreementValidated <- krippendorffs.alpha(validationsbyUserKripp,
-                                                   level = "nominal",
-                                                   control = list(bootit = 100, parallel = FALSE),
-                                                   verbose = TRUE) #validationbyCoder
-    print(krippAgreementValidated$alpha.hat)
-    #summary(krippAgreementValidated)
+    validationsbyUserQ1 <- expertsValidations %>% select(position,question1,usernameId) %>%  distinct(position,usernameId, .keep_all = TRUE) %>% spread(usernameId,question1)
+    print(validationsbyUserQ1)
+    # aux <- validationsbyUserQ1 %>% select(-position)
+    # numValid <- apply(X=!is.na(aux),MARGIN = 1, FUN= sum) #rowSums(!is.na(validationsbyUser))
+    # numValid <- cbind(numValid,validationsbyUserQ1$position)
+    # colnames(numValid)[2] <- "position"
+    # tableAdmin <- left_join(adminArticles,as.data.frame(numValid),by=c("row_num"="position"))
+    # tableAdmin <- left_join(tableAdmin,validationsbyUserQ1,by=c("row_num"="position"))
+    # #colnames(tableAdmin)[5] <- "numberValidations"
+    # #set.seed(123) en global
+    # # krippTable <- data.matrix(tableAdmin[,-c(1:4)]) #all articles
+    # # colnames(krippTable) <- NULL
+    # # krippAgreement <- krippendorffs.alpha(krippTable, level = "nominal", control = list(bootit = 100, parallel = FALSE),verbose = TRUE) #validationbyCoder
+    # # print(krippAgreement$alpha.hat)
+    # # summary(krippAgreement)
+    # 
+    # validationsbyUserKripp <- data.matrix(aux) #(validationsbyUser[,-c(1)])
+    # colnames(validationsbyUserKripp) <- NULL
+    # # validationsbyUserKripp <- cbind(validationsbyUserKripp,validationsbyUserKripp[,1]) #Agrego otra columna igual a ver si mejora el coeficiente
+    # krippAgreementValidated <- krippendorffs.alpha(validationsbyUserKripp,
+    #                                                level = "nominal",
+    #                                                control = list(bootit = 100, parallel = FALSE),
+    #                                                verbose = TRUE) #validationbyCoder
+    # print(krippAgreementValidated$alpha.hat)
+    # #summary(krippAgreementValidated)
   }
   else{
     krippAgreementValidated <- NULL
@@ -452,31 +452,30 @@ server <- function(input, output, session) {
   output$currentSummariesFile <- renderPrint({
     SUMM_FILE$fileName
   })
-  
+
   output$currentArticlesFile <- renderPrint({
     ARTIC_FILE$fileName
   })
-  
-  # output$currentFileNameResponses <- renderPrint({
-  #   input$responsesFileName #conf$fileNameResponses
-  # })
-  
+
+
   observeEvent(input$saveSample,{
+    print("pasa por observe event save sample")
     conf$sampleSize <<- input$sample
     print(conf$sampleSize)
-    filePath <- file.path(tempdir(),"conf.csv") 
+    filePath <- file.path(tempdir(),"conf.csv")
     write.table(conf,file=filePath,append = FALSE,sep=',',row.names = FALSE)
     drop_upload(filePath,inputDir)
     shinyalert(title="Configuración actualizada",type="success")
     print(conf)
   })
-  
+
   observeEvent(input$saveSummariesFile,{
+    print("pasa por observe event save summaries file")
     if(input$changeSummariesFile == 1){ #se podría verificar que tenga el formato correcto
       if(input$newSummariesFile$type == "text/csv"){
         conf$fileSummaries <<- input$newSummariesFile$name
         SUMM_FILE$fileName <- input$newSummariesFile$name
-        filePathConf <- file.path(tempdir(),"conf.csv") 
+        filePathConf <- file.path(tempdir(),"conf.csv")
         write.table(conf,file=filePathConf,append = FALSE,sep=',',row.names = FALSE)
         drop_upload(filePathConf,inputDir)
         dir.create("tempdir")
@@ -490,15 +489,16 @@ server <- function(input, output, session) {
         message("No se puede cargar el fichero seleccionado porque no es de tipo csv")
       }
     }
-    #print(conf) 
+    #print(conf)
     })
-  
-  observeEvent(input$ArticlesFile,{
+
+  observeEvent(input$saveArticlesFile,{
+    print("pasa por observe event savearticles file")
     if(input$changeArticlesFile == 1){ #se podría verificar que tenga el formato correcto
       if(input$newArticlesFile$type == "text/csv"){
         conf$fileArticles <<- input$newArticlesFile$name
         ARTIC_FILE$fileName <- input$newArticlesFile$name
-        filePathConf <- file.path(tempdir(),"conf.csv") 
+        filePathConf <- file.path(tempdir(),"conf.csv")
         write.table(conf,file=filePathConf,append = FALSE,sep=',',row.names = FALSE)
         drop_upload(filePathConf,inputDir)
         dir.create("tempdir")
@@ -512,10 +512,11 @@ server <- function(input, output, session) {
         message("No se puede cargar el fichero seleccionado porque no es de tipo csv")
       }
     }
-    #print(conf) 
+    #print(conf)
   })
-  
+
   output$agreementBox <- renderInfoBox({
+    print("pasa por krippendorf")
     infoBox(
       "Krippendorff's Alpha",
       round(krippAgreementValidated$alpha.hat,2),
@@ -525,6 +526,7 @@ server <- function(input, output, session) {
   })
 
   output$validatedBox <- renderInfoBox({
+    print("pasa por articulos validados")
     infoBox(
       "Validated Articles",
       nrow(validationsbyUser),
@@ -534,6 +536,7 @@ server <- function(input, output, session) {
   })
 
   output$pendingBox <- renderInfoBox({
+    print("pasa por pendingArticles")
     infoBox(
       "Pending Articles",
       nrow(articles) - nrow(validationsbyUser),
@@ -543,6 +546,7 @@ server <- function(input, output, session) {
   })
 
   output$OKKO_plot <-renderPlot({
+    print("pasa por OKKO plot")
     df <- expertsValidations %>%  select(question1) %>% count(question1) %>% mutate(percentage = paste0(round(n/sum(n)*100),"%"))
     df <- df %>% mutate(pos = cumsum(n) -0.5 * n)
     df$question1 <- as.factor(df$question1)
@@ -562,14 +566,15 @@ server <- function(input, output, session) {
   })
 
   output$results <-  DT::renderDataTable({
+    print("pasa por render table admin")
     #no sé si leer, por si se conecta otro usuario......
     # validationsbyUser <- expertsValidations %>% select(position,error,username_id) %>% arrange(position)
     # spreadTest <- validationsbyUser %>%  spread(username_id, error)
     # validationsbyUser <- expertsValidations %>% select(position,error,username_id) %>%  spread(username_id, error)
     # tableAdmin <- left_join(adminArticles,validationsbyUser,by=c("row_num"="position"))
     #nrow(tableAdmin) #ok, todas las filas
-    datatable(tableAdmin[,-c(1)], options = list(autoWidth = TRUE,
-                                                 searching = FALSE))
+    #datatable(tableAdmin[,-c(1)], options = list(autoWidth = TRUE,
+                                                 #searching = FALSE))
   })
 
   # output$usersValidations <- renderPlot({
