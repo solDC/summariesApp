@@ -8,8 +8,8 @@ library(rdrop2)
 library(shinyalert)
 
 # Done once to create Dropbox authentification tokens
-token<-drop_auth()
-saveRDS(token, "droptoken.rds")
+# token<-drop_auth()
+# saveRDS(token, "droptoken.rds")
 
 #Dropbox auth
 token <- readRDS("droptoken.rds")

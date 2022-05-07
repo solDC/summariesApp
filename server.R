@@ -245,7 +245,8 @@ server <- function(input, output, session) {
            ) #tabItem validate
         )# tabItems
         }#fin if si el usuario es el expert
-        else{ #Usuario admin
+        else{ 
+          #Usuario admin
           tabItems(
             tabItem(tabName = "manageEvalSummaries", class = "active",
                     fluidRow(
@@ -257,8 +258,7 @@ server <- function(input, output, session) {
                       box(width=6,
                         numericInput("sample",label='Seleccione el tamaño de la muestra a validar [en %]',
                                      min=1, max=100, value=conf$sampleSize),
-                        p("El tamaño de la muestra sería (nº): "), verbatimTextOutput("numberRowsSample")#,
-                        #actionButton("saveSample", label= "Guardar",class="btn-primary"))
+                        p("El tamaño de la muestra sería (nº): "), verbatimTextOutput("numberRowsSample")
                       ))), 
                     fluidRow(
                       box(title="Número de validaciones y nivel de acuerdo mínimo por resumen", width = 12, solidHeader = TRUE,status = "primary",
@@ -266,12 +266,10 @@ server <- function(input, output, session) {
                               strong("Mínimo número actual de validaciones por resumen: "), verbatimTextOutput("minValid"),
                               sliderInput("minValid",label='Seleccione el número mínimo de validaciones por resumen:',
                                           min=0, max=10, value = conf$minNumValid)),                         
-                              #actionButton("saveMinValid", label= "Guardar",class="btn-primary")),
                           box(title="Mínimo % de nivel de acuerdo por resumen", width = 6, 
                               strong("Mínimo % actual de acuerdo por resumen: "), verbatimTextOutput("minAgreem"),
                               sliderInput("minAgreem",label='Seleccione el tamaño de la muestra a validar [en %]',
-                                          min=0, max=100, value = conf$minLevelAgreem)#,
-                              #actionButton("saveMinAgreem", label= "Guardar",class="btn-primary"))
+                                          min=0, max=100, value = conf$minLevelAgreem)
                     ))), 
                     fluidRow(
                       box(width = 12, title = "Gestión de ficheros",solidHeader = TRUE,status = "primary",
@@ -284,9 +282,8 @@ server <- function(input, output, session) {
                                 condition = "input.changeArticlesFile == 1",
                                 fileInput("newArticlesFile",label="Subir el nuevo fichero con los resúmenes a validar (solo csv)",
                                           multiple = FALSE, accept = ".csv")
-                              )#,#conditional Panel 
-                              #actionButton("saveArticlesFile", label= "Guardar",class="btn-primary")
-                          ),#box fichero de artículos a validar
+                              )
+                          ),
                           box(title="Fichero de resúmenes a validar", width = 6, 
                               strong("Nombre del fichero actual:"),verbatimTextOutput("currentSummariesFile"),
                               radioButtons("changeSummariesFile",label="Desea cambiar el fichero de resúmenes a validar ",
@@ -296,8 +293,7 @@ server <- function(input, output, session) {
                                 condition = "input.changeSummariesFile == 1",
                                 fileInput("newSummariesFile",label="Subir el nuevo fichero con los resúmenes a validar (solo csv)",
                                           multiple = FALSE, accept = ".csv")
-                              )#,#conditional Panel 
-                              #actionButton("saveSummariesFile", label= "Guardar",class="btn-primary")
+                              )
                           ),
                       )),#outer box y fluidRow
                     actionButton("saveConfig", label= "Guardar configuración",class="btn-info")
@@ -317,13 +313,33 @@ server <- function(input, output, session) {
                     )#fluidRow
             ),#tabItem dashboardEvalSummaries
             tabItem(tabName = "users",
-                    h4("acá ver movimiento de los usuarios, alta de nuevo usuario"),
-                    #fluidRow(
-                      #column(width = 12, offset = 0,
-                      plotOutput("usersValidations")
-                    #))
-            )#tabItem users
-            
+                    fluidRow(
+                      box(width = 6, title = "Crear nuevo usuario",solidHeader = TRUE,status = "primary",
+                          textInput("usernameInput", label = "Ingrese el nombre de usuario", value = ""),
+                          textInput("pswInput", label = "Ingrese la contraseña", value = ""),
+                          selectInput("typeUserInput", label = "Seleccione",
+                                      choices = credentials$permission),
+                          actionButton("saveNewUser", label= "Crear nuevo usuario",class="btn-primary")
+                      ),
+                      box(width = 6, title = "Modificar usuario",solidHeader = TRUE,status = "primary",
+                          selectInput("usernameInputChg", label = "Seleccione",
+                                      choices = REG_USERS$users),
+                          textInput("pswInputChg", label = "Ingrese la nueva contraseña", value = ""),
+                          selectInput("typeUserInputChg", label = "Seleccione",
+                                      choices = list("expert", "admin")),
+                          actionButton("changeUser", label= "Modificar usuario",class="btn-primary")
+                      )),
+                    fluidRow(
+                      box(width = 12, title = "Listado de usuarios",solidHeader = TRUE,status = "primary",
+                          checkboxGroupInput("cgTypeUser", label = "Filtrar por tipo de usuario", 
+                                  choices = list("expert", "admin"),
+                                  selected = c("expert")),
+                        dataTableOutput("tableUsers"))
+                    )
+            ),#tabItem users
+            tabItem(tabName = "manageData",
+                    h4("acá botones para bajar y guardar estado sistema en rds y explorar,descargar y eliminar ficheros"),
+            )
           )#tabItems
         } #fin if cuando el usuario es el administrador
   }
@@ -333,8 +349,8 @@ server <- function(input, output, session) {
   })
 
 
-  ######
   #User Expert
+  ######
 
   selectedArticleData <- reactive ({
     if(!is.null(articles)){
@@ -436,7 +452,8 @@ server <- function(input, output, session) {
     updateSelectInput(session,"selectTitle",choices=TITLES$userTitles)
   })
 
-######## Admin 
+  #Admin 
+  ###### 
   
   # Configure Experiment
   ######
@@ -481,6 +498,7 @@ server <- function(input, output, session) {
     ARTIC_FILE$fileName
   })
 
+  #####
   observeEvent(input$saveConfig,{
     #save input values in case there are changes
     conf$sampleSize <<- input$sample
@@ -535,81 +553,8 @@ server <- function(input, output, session) {
     shinyalert(title="Configuración actualizada",type="success")
   })
   
-  # observeEvent(input$saveSample,{
-  #   conf$sampleSize <<- input$sample
-  #   SAMPLE_PERC$size <- input$sample
-  #   SAMPLE_ROWS$size <-   round(input$sample*numArticles/100,0)
-  #   filePath <- file.path(tempdir(),"conf.csv")
-  #   write.table(conf,file=filePath,append = FALSE,sep=',',row.names = FALSE)
-  #   drop_upload(filePath,inputDir)
-  #   shinyalert(title="Configuración actualizada",type="success")
-  # })
-  # 
-  # observeEvent(input$saveMinValid,{
-  #   conf$minNumValid <<- input$minValid
-  #   MIN_VALID$n <- input$minValid
-  #   filePath <- file.path(tempdir(),"conf.csv")
-  #   write.table(conf,file=filePath,append = FALSE,sep=',',row.names = FALSE)
-  #   drop_upload(filePath,inputDir)
-  #   shinyalert(title="Configuración actualizada",type="success")
-  # })
-  # 
-  # observeEvent(input$saveMinAgreem,{
-  #   conf$minLevelAgreem <<- input$minAgreem
-  #   MIN_AGREEM$l <- input$minAgreem
-  #   filePath <- file.path(tempdir(),"conf.csv")
-  #   write.table(conf,file=filePath,append = FALSE,sep=',',row.names = FALSE)
-  #   drop_upload(filePath,inputDir)
-  #   shinyalert(title="Configuración actualizada",type="success")
-  # })
-  # 
-  # observeEvent(input$saveSummariesFile,{
-  #   if(input$changeSummariesFile == 1){ #se podría verificar que tenga el formato correcto
-  #     if(input$newSummariesFile$type == "text/csv"){
-  #       conf$fileSummaries <<- input$newSummariesFile$name
-  #       SUMM_FILE$fileName <- input$newSummariesFile$name
-  #       filePathConf <- file.path(tempdir(),"conf.csv")
-  #       write.table(conf,file=filePathConf,append = FALSE,sep=',',row.names = FALSE)
-  #       drop_upload(filePathConf,inputDir)
-  #       dir.create("tempdir")
-  #       file.copy(input$newSummariesFile$datapath, file.path("tempdir",input$newSummariesFile$name))
-  #       drop_upload(paste0("tempdir/",input$newSummariesFile$name),inputDir, mode = "overwrite") #no hace overwrite
-  #       summaries <<- loadCSV(inputDir,conf$fileSummaries)
-  #       # sampleSize <<- round(conf$sampleSize*numArticles/100,0)
-  #       # samplePositions <<- sort(sample(1:numArticles,sampleSize,replace=F))
-  #       # articles <<- articles[samplePositions,]
-  #       # summaries <<- as.data.frame(summaries[samplePositions,])
-  #       shinyalert(title="Configuración actualizada",type="success")
-  #     }
-  #     else{
-  #       shinyalert(title="Error en el tipo de fichero seleccionado, no se subirá el nuevo fichero",type="error")
-  #       message("No se puede cargar el fichero seleccionado porque no es de tipo csv")
-  #     }
-  #   }
-  #   })
-  # 
-  # observeEvent(input$saveArticlesFile,{
-  #   if(input$changeArticlesFile == 1){ #se podría verificar que tenga el formato correcto
-  #     if(input$newArticlesFile$type == "text/csv"){
-  #       conf$fileArticles <<- input$newArticlesFile$name
-  #       ARTIC_FILE$fileName <- input$newArticlesFile$name
-  #       filePathConf <- file.path(tempdir(),"conf.csv")
-  #       write.table(conf,file=filePathConf,append = FALSE,sep=',',row.names = FALSE)
-  #       drop_upload(filePathConf,inputDir)
-  #       dir.create("tempdir")
-  #       file.copy(input$newArticlesFile$datapath, file.path("tempdir",input$newArticlesFile$name))
-  #       drop_upload(paste0("tempdir/",input$newArticlesFile$name),inputDir, mode = "overwrite") #no hace overwrite
-  #       articles <- loadCSV(inputDir,conf$fileArticles)
-  #       numArticles <- nrow(articles)
-  #       shinyalert(title="Configuración actualizada",type="success")
-  #     }
-  #     else{
-  #       shinyalert(title="Error en el tipo de fichero seleccionado, no se subirá el nuevo fichero",type="error")
-  #       message("No se puede cargar el fichero seleccionado porque no es de tipo csv")
-  #     }
-  #   }
-  # })
-
+  #Dashboard Experiment
+  ######
   output$agreementBox <- renderInfoBox({
     print("pasa por krippendorf")
     infoBox(
@@ -679,5 +624,55 @@ server <- function(input, output, session) {
   #     labs(x = "Expert username",y = "Title", title = "Tipo de error por resumen y usuario") #Summaries type of error by expert")
   #   p + scale_fill_discrete(name= "Error", labels=names(typeErrors))
   # })
-
+  
+  #Manage Users
+  ######
+  REG_USERS <- reactiveValues(users = credentials$username_id) #REG_USERS$users
+  
+  output$tableUsers <-  DT::renderDataTable({
+   # selectTypeUser
+   #data <- credentials[,-c(2)]
+   data <- credentials %>% select(username_id,permission) %>% filter(permission %in% input$cgTypeUser)
+   datatable(data, options = list(autoWidth = TRUE,searching = FALSE))
+  })
+  
+  observeEvent(input$saveNewUser,{
+    newUser <- data.frame(matrix(ncol=length(credentials),nrow=1))
+    colnames(newUser) <- colnames(credentials)
+    newUser$username_id = input$usernameInput
+    newUser$passod = sapply(input$pswInput, sodium::password_store) 
+    newUser$permission = input$typeUserInput
+    if(input$usernameInput %in% credentials$username_id){
+      shinyalert(title="Nombre de usuario repetido, elija otro",type="error")
+    }
+    else{
+      if(input$usernameInput != "" && input$pswInput != ""){
+        filePath <- file.path(tempdir(),"users.csv")
+        write.table(newUser,file=filePath,append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
+        drop_upload(filePath,inputDir)
+        credentials <<- rbind(credentials,newUser)  
+        REG_USERS$users <- credentials$username_id
+        shinyalert(title="Nuevo usuario creado",type="success")
+      }
+      else
+      {
+        shinyalert(title="Faltan datos, no se puede crear el usuario",type="error")
+      }
+    }
+})
+  
+  observeEvent(input$changeUser,{
+    if(input$pswInputChg != ""){
+      credentials["passod"][which(credentials$username_id==input$usernameInputChg),] <<- sapply(input$pswInputChg, sodium::password_store) 
+      change <- 1
+      print("entro a if psw")
+    }
+    credentials["permission"][which(credentials$username_id==input$usernameInputChg),] <<- input$typeUserInputChg 
+      filePath <- file.path(tempdir(),"users.csv")
+      write.table(credentials,file=filePath,append = FALSE,sep=',',col.names = TRUE, row.names = FALSE)
+      drop_upload(filePath,inputDir,mode = "overwrite")
+      shinyalert(title="Cambios sobre el usuario guardados",type="success")
+      print(credentials)
+  })
+  
 }
