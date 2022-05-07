@@ -13,7 +13,6 @@ library(RColorBrewer)
 library(ggplot2)
 #library(rdrop2)
 
-
 # Main login screen
 #####
 loginpage <- div(id = "loginpage", style = "width: 500px; max-width: 100%; margin: 0 auto; padding: 20px;",
@@ -132,7 +131,8 @@ server <- function(input, output, session) {
 
   ######
   # LOAD EXPERTS VALIDATIONS (file with responses) AND GENERATE TITLES TO VALIDATE
-  
+  #Reactive values
+  ######
   # Reactive Value to store what should be the name of the validations file depending on user and if the file was loaded (control variable)
   #VALID_LOADED <- reactiveValues(loaded = FALSE) #VALID_LOADED$loaded
   FILENAMEEV <- reactiveValues(name = "") #FILENAMEEV$name
@@ -156,8 +156,8 @@ server <- function(input, output, session) {
   colnames(userTitles) <- c("title")
   TITLES <- reactiveValues(userTitles = userTitles) #TITLES$userTitles
   
+  ######
   observeEvent(input$login,{
-  
     FILENAMEEV$name <- paste0("validations-",USERNAME$name,".csv")
     x <- drop_search(FILENAMEEV$name)
     if(x$start == 0){ 
@@ -171,9 +171,6 @@ server <- function(input, output, session) {
       message(paste0("Creado fichero",FILENAMEEV$name))
     }
     EXPERTS_VALIDATIONS$df <- loadCSV(outputDir,FILENAMEEV$name)
-    #print(EXPERTS_VALIDATIONS$df)
-    #VALID_LOADED$loaded <- TRUE
-    #req(VALID_LOADED$loaded)
     if (USER$login == TRUE) {
       if(typeUser() == "expert"){
         #filter positions of validated articles by logged user
@@ -182,7 +179,6 @@ server <- function(input, output, session) {
         VALIDATIONS$positions <- as.data.frame(validatedTitles)
         # Randomize titles to validate so different users validate articles in different order
         if (length(VALIDATIONS$positions > 0)){
-          #TITLES$userTitles <- articles[-VALIDATIONS$positions$position,3]
           TITLES$userTitles <- sample(articles[-VALIDATIONS$positions$position,3])
         }
         else{
@@ -193,9 +189,8 @@ server <- function(input, output, session) {
     print(VALIDATIONS$positions)
   })
 
- 
-  ######
   # Body Render UI depending on logged user
+  ######
   output$body <- renderUI({
     if (USER$login == TRUE) {
       req(conf)
@@ -211,8 +206,7 @@ server <- function(input, output, session) {
                       width=12, title="1- TITULO: seleccione el artículo a validar", status = "primary", solidHeader = TRUE, collapsible = FALSE,
                       selectInput("selectTitle",
                                     label=("Seleccione el artículo a validar"),
-                                    choices = TITLES$userTitles)) # *********************************
-                      #selectizeInput('selectTitle', label=("Seleccione el artículo a validar"),choices = articlesTitles )) #
+                                    choices = TITLES$userTitles)) 
                   ),
                   fluidRow(
                     box(
@@ -232,16 +226,16 @@ server <- function(input, output, session) {
                       width=12, title="4- VALIDACIÓN: conteste las preguntas sobre el resumen", 
                       status = "primary", solidHeader = TRUE, collapsible = FALSE,
                       radioButtons("question1", label = ("El resumen generado: ¿trasmite la idea general del artículo?"),
-                                 choices = list("Verdadero" = 1, "Falso" = 2)),
-                                 #selected = character(0)),
+                                 choices = list("Verdadero" = 1, "Falso" = 2),
+                                 selected = 2), #character(0)),
                       conditionalPanel(
                         condition = "input.question1 == 1",
                         radioButtons("question2", label = ("2- El resumen, ¿contiene información inconsistente con el artículo?"),
                                      choices = list("Verdadero" = 1, "Falso" = 2),
-                                     selected = character(0)),
+                                     selected = 2), #character(0)),
                         radioButtons("question3", label = ("3- El resumen, ¿contiene alguna información que no puede ser inferida del artículo?"),
                                      choices = list("Verdadero" = 1, "Falso" = 2),
-                                     selected = character(0))
+                                     selected = 2) #character(0))
                       ), #conditional panel
                       actionButton('validateButton',"Validar Resumen",class="btn-primary"),
                       br())
@@ -369,8 +363,6 @@ server <- function(input, output, session) {
     validation$usernameId <- USERNAME$name #input$userName
     validation$position <- which(articles$title == input$selectTitle)
     validation$question1 <- input$question1
-    #if the person changes his mind about question 1 after answering question 2 and 3,
-    #values of questions 2 and 3 need to be reset
     if(input$question1 == 2){
       validation$question2 <- NA
       validation$question3 <- NA

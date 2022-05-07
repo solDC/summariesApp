@@ -69,14 +69,13 @@ numColEV <- length(names)
 expertsValidationsColNames <- vector("character",numColEV)
 expertsValidationsColNames <- names
 
-# Table used in the administrator dashboard --->   MOVER ESTO A SERVER EN LA PARTE DEL SI EL LOGADO ES EL ADMIN
+# Table used in the administrator dashboard --->   MOVER ESTO A SERVER EN LA PARTE DEL SI EL LOGADO ES EL ADMIN y REVISARLOOOOOOOO POSITIONS
 if(is.null(articles)){
   message("El fichero con los artículos cuyos resúmenes hay que validar no se ha cargado.")
 } else{
-  adminArticles <- articles %>% select(title) #,summary) El resumen objetivo ya no sirve
-  #adminArticles$row_num <- seq.int(nrow(adminArticles)) Ya no genero una secuencia porque tengo el sample size
+  adminArticles <- articles %>% select(title)
   adminArticles$row_num <- samplePositions
-  adminArticles <- adminArticles[,c(ncol(adminArticles),1:(ncol(adminArticles)-1))] #dejar ron_num como primera columna del dataset
+  adminArticles <- adminArticles[,c(ncol(adminArticles),1:(ncol(adminArticles)-1))] #dejar row_num como primera columna del dataset
   if(is.null(summaries)){
     message("El fichero con los resúmenes no se ha cargado.")
   }
