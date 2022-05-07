@@ -121,7 +121,7 @@ server <- function(input, output, session) {
       }
       else{
         sidebarMenu(
-          menuItem('Gestionar "Validar Resúmenes"', tabName = "manageEvalSummaries", icon = icon("fal fa-database")),
+          menuItem('Configurar "Validar Resúmenes"', tabName = "manageEvalSummaries", icon = icon("fal fa-database")),
           menuItem('Dashboard "Validar Resúmenes"', tabName = "dashboadEvalSummaries", icon = icon("tachometer-alt",lib = "font-awesome")),
           menuItem('Gestionar Usuarios', tabName = "users", icon = icon("fal fa-user"))
         )
@@ -141,10 +141,6 @@ server <- function(input, output, session) {
   df <- data.frame(matrix(ncol=numColEV,nrow=0))
   colnames(df) <- expertsValidationsColNames
   EXPERTS_VALIDATIONS <- reactiveValues(df = df) #EXPERTS_VALIDATIONS$df
-
-   # Reactives Value to store the the current name of the file of summaries and articles that are being validated
-  SUMM_FILE <- reactiveValues(fileName = conf$fileSummaries) #SUMM_FILE$fileName
-  ARTIC_FILE <- reactiveValues(fileName = conf$fileArticles) #ARTIC_FILE$fileName
   
   # Reactive Value to store the position of all validated titles perform by the user (previous and new)
   positions <- data.frame(matrix(ncol=1,nrow=0))
@@ -158,21 +154,21 @@ server <- function(input, output, session) {
   
   ######
   observeEvent(input$login,{
-    FILENAMEEV$name <- paste0("validations-",USERNAME$name,".csv")
-    x <- drop_search(FILENAMEEV$name)
-    if(x$start == 0){ 
-      msg <- paste0("El fichero ",FILENAMEEV$name, " con las validaciones de los usuarios no existe y se va a crear uno vacío.")
-      message(msg)
-      expertsValidations <- data.frame(matrix(ncol=numColEV,nrow=0))
-      colnames(expertsValidations) <- expertsValidationsColNames
-      filePath <- file.path(tempdir(),FILENAMEEV$name)
-      write.table(expertsValidations,file=filePath,sep=',',row.names = FALSE)
-      drop_upload(filePath,outputDir) 
-      message(paste0("Creado fichero",FILENAMEEV$name))
-    }
-    EXPERTS_VALIDATIONS$df <- loadCSV(outputDir,FILENAMEEV$name)
     if (USER$login == TRUE) {
       if(typeUser() == "expert"){
+        FILENAMEEV$name <- paste0("validations-",USERNAME$name,".csv")
+        x <- drop_search(FILENAMEEV$name)
+        if(x$start == 0){ 
+          msg <- paste0("El fichero ",FILENAMEEV$name, " con las validaciones de los usuarios no existe y se va a crear uno vacío.")
+          message(msg)
+          expertValid <- data.frame(matrix(ncol=numColEV,nrow=0))
+          colnames(expertValid) <- expertsValidationsColNames
+          filePath <- file.path(tempdir(),FILENAMEEV$name)
+          write.table(expertValid,file=filePath,sep=',',row.names = FALSE)
+          drop_upload(filePath,outputDir) 
+          message(paste0("Creado fichero",FILENAMEEV$name))
+        }
+        EXPERTS_VALIDATIONS$df <- loadCSV(outputDir,FILENAMEEV$name)
         #filter positions of validated articles by logged user
         print(EXPERTS_VALIDATIONS$df)
         validatedTitles <- EXPERTS_VALIDATIONS$df %>% filter(usernameId == input$userName) %>% select(position)
@@ -254,15 +250,32 @@ server <- function(input, output, session) {
                     fluidRow(
                       box(title="Tamaño de la muestra a validar", width = 12, solidHeader = TRUE,status = "primary",
                         box(width=6,
-                        p("El tamaño actual es:"), verbatimTextOutput("currentSampleSize"),
-                        sliderInput("sample",label='Seleccione el tamaño de la muestra a validar [en %]',
-                                min=0, max=100, value = conf$sampleSize),
+                          strong("Número total de artículos-resúmenes: "), verbatimTextOutput("numberRowsArticles"),
+                          strong("Tamaño actual de la muestra (en %):"), verbatimTextOutput("currentSampleSize"),
+                          strong("Tamaño actual de la muestra (nº): "), verbatimTextOutput("numberCurrentSampleRows")),
+                      box(width=6,
+                        numericInput("sample",label='Seleccione el tamaño de la muestra a validar [en %]',
+                                     min=1, max=100, value=conf$sampleSize),
+                        p("El tamaño de la muestra sería (nº): "), verbatimTextOutput("numberRowsSample"),
                         actionButton("saveSample", label= "Guardar",class="btn-primary"))
-                        )),
+                      )), #outer box y fluidRow
+                    fluidRow(
+                      box(title="Número de validaciones y nivel de acuerdo mínimo por resumen", width = 12, solidHeader = TRUE,status = "primary",
+                          box(title="Número mínimo de validaciones por resumen", width = 6, 
+                              strong("Mínimo número actual de validaciones por resumen: "), verbatimTextOutput("minValid"),
+                              sliderInput("minValid",label='Seleccione el número mínimo de validaciones por resumen:',
+                                          min=0, max=10, value = conf$minNumValid),                         
+                              actionButton("saveMinValid", label= "Guardar",class="btn-primary")),
+                          box(title="Mínimo % de nivel de acuerdo por resumen", width = 6, 
+                              strong("Mínimo % actual de acuerdo por resumen: "), verbatimTextOutput("minAgreem"),
+                              sliderInput("minAgreem",label='Seleccione el tamaño de la muestra a validar [en %]',
+                                          min=0, max=100, value = conf$minLevelAgreem),
+                              actionButton("saveMinAgreem", label= "Guardar",class="btn-primary"))
+                    )), #outer box y fluidRow
                     fluidRow(
                       box(width = 12, title = "Gestión de ficheros",solidHeader = TRUE,status = "primary",
                           box(title="Fichero de artículos a validar", width = 6, 
-                              p("Nombre del fichero actual:"),verbatimTextOutput("currentArticlesFile"),
+                              strong("Nombre del fichero actual:"),verbatimTextOutput("currentArticlesFile"),
                               radioButtons("changeArticlesFile",label="Desea cambiar el fichero de artículos a validar ",
                                            choices=list("Yes" = 1, "No" = 2),
                                            selected = 2),
@@ -274,7 +287,7 @@ server <- function(input, output, session) {
                               actionButton("saveArticlesFile", label= "Guardar",class="btn-primary")
                           ),#box fichero de artículos a validar
                           box(title="Fichero de resúmenes a validar", width = 6, 
-                              p("Nombre del fichero actual:"),verbatimTextOutput("currentSummariesFile"),
+                              strong("Nombre del fichero actual:"),verbatimTextOutput("currentSummariesFile"),
                               radioButtons("changeSummariesFile",label="Desea cambiar el fichero de resúmenes a validar ",
                                            choices=list("Yes" = 1, "No" = 2),
                                            selected = 2),
@@ -284,15 +297,8 @@ server <- function(input, output, session) {
                                           multiple = FALSE, accept = ".csv")
                               ),#conditional Panel 
                               actionButton("saveSummariesFile", label= "Guardar",class="btn-primary")
-                          ),#box fichero de resúmenes a validar
-                          # box(title = "Nombre del fichero para las respuestas de los evaluadores", 
-                          #     width = 6, #height = 320,
-                          #     p("Nombre del fichero actual:"),verbatimTextOutput("currentFileNameResponses"),
-                          #     textInput("responsesFileName",label="Ingrese el nombre del fichero donde se guardaran las respuestas de las 
-                          #               validaciones para el nuevo fichero de resúmenes", 
-                          #               value = conf$fileNameResponses)
-                          # ), #box nombre fichero de respuestas
-                      ))#big box and fluidRow
+                          )
+                      )),#outer box y fluidRow
              ),#tabItem manageEvalSummaries
             tabItem(tabName ="dashboadEvalSummaries",
                     fluidRow(
@@ -419,7 +425,7 @@ server <- function(input, output, session) {
 
     shinyalert(title="Validation stored",type="success")
 
-    #update select input title list pending validation by user
+    #update select input title list pending validation by user ---> OJO FALTA AGREGAR EL NIVEL DE ACUERDO ENTRE TODOS
     position <- validation$position
     VALIDATIONS$positions <- append(VALIDATIONS$positions$position,position)
     VALIDATIONS$positions <- as.data.frame(VALIDATIONS$positions)
@@ -428,48 +434,41 @@ server <- function(input, output, session) {
     updateSelectInput(session,"selectTitle",choices=TITLES$userTitles)
   })
 
-  # ######
-  # #User Admin ---> No puede estar suelto
-  # if(nrow(expertsValidations) > 0){
-  #   validationsbyUserQ1 <- expertsValidations %>% select(position,question1,usernameId) %>%  distinct(position,usernameId, .keep_all = TRUE) %>% spread(usernameId,question1)
-  #   print(validationsbyUserQ1)
-  #   # aux <- validationsbyUserQ1 %>% select(-position)
-  #   # numValid <- apply(X=!is.na(aux),MARGIN = 1, FUN= sum) #rowSums(!is.na(validationsbyUser))
-  #   # numValid <- cbind(numValid,validationsbyUserQ1$position)
-  #   # colnames(numValid)[2] <- "position"
-  #   # tableAdmin <- left_join(adminArticles,as.data.frame(numValid),by=c("row_num"="position"))
-  #   # tableAdmin <- left_join(tableAdmin,validationsbyUserQ1,by=c("row_num"="position"))
-  #   # #colnames(tableAdmin)[5] <- "numberValidations"
-  #   # #set.seed(123) en global
-  #   # # krippTable <- data.matrix(tableAdmin[,-c(1:4)]) #all articles
-  #   # # colnames(krippTable) <- NULL
-  #   # # krippAgreement <- krippendorffs.alpha(krippTable, level = "nominal", control = list(bootit = 100, parallel = FALSE),verbose = TRUE) #validationbyCoder
-  #   # # print(krippAgreement$alpha.hat)
-  #   # # summary(krippAgreement)
-  #   # 
-  #   # validationsbyUserKripp <- data.matrix(aux) #(validationsbyUser[,-c(1)])
-  #   # colnames(validationsbyUserKripp) <- NULL
-  #   # # validationsbyUserKripp <- cbind(validationsbyUserKripp,validationsbyUserKripp[,1]) #Agrego otra columna igual a ver si mejora el coeficiente
-  #   # krippAgreementValidated <- krippendorffs.alpha(validationsbyUserKripp,
-  #   #                                                level = "nominal",
-  #   #                                                control = list(bootit = 100, parallel = FALSE),
-  #   #                                                verbose = TRUE) #validationbyCoder
-  #   # print(krippAgreementValidated$alpha.hat)
-  #   # #summary(krippAgreementValidated)
-  # }
-  # else{
-  #   krippAgreementValidated <- NULL
-  #   krippAgreementValidated$alpha.hat <- 0
-  #   validationsbyUser <- data.frame(matrix(ncol=0,nrow=0))
-  # }
-
-
 ######## Admin 
-
+  # Reactives Value to store the the current name of the file of summaries and articles that are being validated
+  SAMPLE_ROWS <- reactiveValues(size = sampleSize) #SAMPLE$size
+  SAMPLE_PERC <- reactiveValues(size = conf$sampleSize) #SAMPLE$size
+  SUMM_FILE <- reactiveValues(fileName = conf$fileSummaries) #SUMM_FILE$fileName
+  ARTIC_FILE <- reactiveValues(fileName = conf$fileArticles) #ARTIC_FILE$fileName
+  MIN_VALID <- reactiveValues(n = conf$minNumValid) #MIN_VALID$n
+  MIN_AGREEM <- reactiveValues(l = conf$minLevelAgreem) #MIN_AGREEM$l
+  
+  output$numberRowsArticles <- renderPrint({
+    numArticles
+  }) 
+  
   output$currentSampleSize <- renderPrint({
-    input$sample
+    SAMPLE_PERC$size
   })
-
+  
+  output$numberCurrentSampleRows <- renderPrint({
+    SAMPLE_ROWS$size
+  })
+  
+  output$numberRowsSample <- renderPrint({
+    round(input$sample*numArticles/100,0)
+  }) 
+  
+ 
+  
+  output$minValid <- renderPrint({
+    MIN_VALID$n
+  })
+  
+  output$minAgreem <- renderPrint({
+    MIN_AGREEM$l
+  })
+  
   output$currentSummariesFile <- renderPrint({
     SUMM_FILE$fileName
   })
@@ -479,18 +478,34 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$saveSample,{
-    print("pasa por observe event save sample")
     conf$sampleSize <<- input$sample
-    print(conf$sampleSize)
+    SAMPLE_PERC$size <- input$sample
+    SAMPLE_ROWS$size <-   round(input$sample*numArticles/100,0)
     filePath <- file.path(tempdir(),"conf.csv")
     write.table(conf,file=filePath,append = FALSE,sep=',',row.names = FALSE)
     drop_upload(filePath,inputDir)
     shinyalert(title="Configuración actualizada",type="success")
-    print(conf)
+  })
+  
+  observeEvent(input$saveMinValid,{
+    conf$minNumValid <<- input$minValid
+    MIN_VALID$n <- input$minValid
+    filePath <- file.path(tempdir(),"conf.csv")
+    write.table(conf,file=filePath,append = FALSE,sep=',',row.names = FALSE)
+    drop_upload(filePath,inputDir)
+    shinyalert(title="Configuración actualizada",type="success")
+  })
+  
+  observeEvent(input$saveMinAgreem,{
+    conf$minLevelAgreem <<- input$minAgreem
+    MIN_AGREEM$l <- input$minAgreem
+    filePath <- file.path(tempdir(),"conf.csv")
+    write.table(conf,file=filePath,append = FALSE,sep=',',row.names = FALSE)
+    drop_upload(filePath,inputDir)
+    shinyalert(title="Configuración actualizada",type="success")
   })
 
   observeEvent(input$saveSummariesFile,{
-    print("pasa por observe event save summaries file")
     if(input$changeSummariesFile == 1){ #se podría verificar que tenga el formato correcto
       if(input$newSummariesFile$type == "text/csv"){
         conf$fileSummaries <<- input$newSummariesFile$name
@@ -501,7 +516,11 @@ server <- function(input, output, session) {
         dir.create("tempdir")
         file.copy(input$newSummariesFile$datapath, file.path("tempdir",input$newSummariesFile$name))
         drop_upload(paste0("tempdir/",input$newSummariesFile$name),inputDir, mode = "overwrite") #no hace overwrite
-        summaries <- loadCSV(inputDir,conf$fileSummaries)
+        summaries <<- loadCSV(inputDir,conf$fileSummaries)
+        # sampleSize <<- round(conf$sampleSize*numArticles/100,0)
+        # samplePositions <<- sort(sample(1:numArticles,sampleSize,replace=F))
+        # articles <<- articles[samplePositions,]
+        # summaries <<- as.data.frame(summaries[samplePositions,])
         shinyalert(title="Configuración actualizada",type="success")
       }
       else{
@@ -509,11 +528,9 @@ server <- function(input, output, session) {
         message("No se puede cargar el fichero seleccionado porque no es de tipo csv")
       }
     }
-    #print(conf)
     })
 
   observeEvent(input$saveArticlesFile,{
-    print("pasa por observe event savearticles file")
     if(input$changeArticlesFile == 1){ #se podría verificar que tenga el formato correcto
       if(input$newArticlesFile$type == "text/csv"){
         conf$fileArticles <<- input$newArticlesFile$name
@@ -525,6 +542,7 @@ server <- function(input, output, session) {
         file.copy(input$newArticlesFile$datapath, file.path("tempdir",input$newArticlesFile$name))
         drop_upload(paste0("tempdir/",input$newArticlesFile$name),inputDir, mode = "overwrite") #no hace overwrite
         articles <- loadCSV(inputDir,conf$fileArticles)
+        numArticles <- nrow(articles)
         shinyalert(title="Configuración actualizada",type="success")
       }
       else{
@@ -532,7 +550,6 @@ server <- function(input, output, session) {
         message("No se puede cargar el fichero seleccionado porque no es de tipo csv")
       }
     }
-    #print(conf)
   })
 
   output$agreementBox <- renderInfoBox({

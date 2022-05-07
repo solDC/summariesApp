@@ -8,8 +8,8 @@ library(rdrop2)
 library(shinyalert)
 
 # Done once to create Dropbox authentification tokens
-# token<-drop_auth()
-# saveRDS(token, "droptoken.rds")
+token<-drop_auth()
+saveRDS(token, "droptoken.rds")
 
 #Dropbox auth
 token <- readRDS("droptoken.rds")
@@ -42,19 +42,20 @@ loadCSV <- function(path,fileName){
 conf <- loadCSV(inputDir,"conf.csv")
 credentials <- loadCSV(inputDir,"users.csv")
 
+
+
 # Load Articles and Summaries
 # Articles and Summaries are related by its position in the file
-# I will only kept the ones the user will validate
+# I will only kept the ones the users need to validate (random sample depending on sample size defined by admin)
 set.seed(123)
 if(is.null(conf)){
   message("Error al leer el fichero configuración, sin contenido")
 } else{
   articles <- loadCSV(inputDir,conf$fileArticles)
   numArticles <- nrow(articles)
-  #print(paste0("filas de articulos: ",numArticles))
   summaries <- loadCSV(inputDir,conf$fileSummaries)  
-  numTestSample <- conf$sampleSize*numArticles/100
-  sampleSize <- round(numTestSample,0)
+  sampleSize <- conf$sampleSize*numArticles/100
+  sampleSize <- round(sampleSize,0)
   samplePositions <- sample(1:numArticles,sampleSize,replace=F)
   samplePositions <- sort(samplePositions)
   articles <- articles[samplePositions,]
@@ -68,6 +69,17 @@ names <- c("usernameId","position","question1","question2","question3","timeStam
 numColEV <- length(names)
 expertsValidationsColNames <- vector("character",numColEV)
 expertsValidationsColNames <- names
+
+# Calculate individual level of agreement
+# 1- Leer todas las respuestas de usuarios y las uno en un único dataset
+# 2- Agrupar por position y calcular de agreement de cada resumen
+# 3- agregarlo a summaries en una nueva columna
+filesInfo <- drop_dir(outputDir)
+filePaths <- filesInfo$path_display
+expertsValidations <- lapply(filePaths, drop_read_csv, stringsAsFactors=FALSE)
+expertsValidations <- do.call(rbind,expertsValidations)
+validationsQ1 <- expertsValidations %>% select(position,question1,usernameId) %>%  distinct(position,usernameId, .keep_all = TRUE) %>% spread(usernameId,question1)
+
 
 # Table used in the administrator dashboard --->   MOVER ESTO A SERVER EN LA PARTE DEL SI EL LOGADO ES EL ADMIN y REVISARLOOOOOOOO POSITIONS
 if(is.null(articles)){
