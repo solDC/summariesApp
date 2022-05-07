@@ -50,8 +50,8 @@ server <- function(input, output, session) {
   ######
   login <- FALSE
   USER <- reactiveValues(login = login)
-  name <- NULL##new
-  USERNAME <- reactiveValues(name = name)##new
+  name <- NULL
+  USERNAME <- reactiveValues(name = name) #USERNAME$name
   
   observe({ 
     if (USER$login == FALSE) {
@@ -202,6 +202,11 @@ server <- function(input, output, session) {
                   ),
           tabItem(tabName = "validate", class = "active",
                   fluidRow(
+                    infoBoxOutput("expertGreetingBox"),
+                    infoBoxOutput("expertValidatedBox"),
+                    infoBoxOutput("expertPendingBox")
+                  ),
+                  fluidRow(
                     box(
                       width=12, title="1- TITULO: seleccione el artículo a validar", status = "primary", solidHeader = TRUE, collapsible = FALSE,
                       selectInput("selectTitle",
@@ -314,7 +319,7 @@ server <- function(input, output, session) {
           )#tabItems
         } #fin if cuando el usuario es el administrador
   }
-  else {
+    else {
     loginpage
   }
   })
@@ -346,6 +351,33 @@ server <- function(input, output, session) {
                  type="error")
     }
   })
+  
+  output$expertGreetingBox <- renderInfoBox({
+    infoBox(
+      "Welcome",
+      USERNAME$name,
+      icon = icon("fal fa-user"),   # ("glyphicon-check", lib = "glyphicon"),
+      color = "purple"
+    )
+  })
+  
+  output$expertValidatedBox <- renderInfoBox({
+    infoBox(
+      "Validated Summaries",
+      nrow(distinct(VALIDATIONS$positions)),
+      icon = icon("fal fa-check"),   # ("glyphicon-check", lib = "glyphicon"),
+      color = "olive"
+    )
+  })
+  
+  output$expertPendingBox <- renderInfoBox({
+    infoBox(
+      "Pending Validation",
+      nrow(articles) - nrow(distinct(VALIDATIONS$positions)),
+      icon = icon("fal fa-edit"), #("glyphicon-edit", lib = "glyphicon"),
+      color = "maroon"
+    )
+  })
 
   output$articleURL <- renderUI({
     HTML(paste0("<p><b>Para leer el artículo visite: </b><a href=",selectedArticleData()$url,' target="_blank">',selectedArticleData()$url,"</a></p>"))
@@ -355,6 +387,8 @@ server <- function(input, output, session) {
   
   output$generatedSummary <- renderText(filteredGeneratedSummary())
 
+  #####
+  # SAVE VALIDATION AND UPDATE TITLES LIST
   observeEvent(input$validateButton,{
     #create structure to save validation
     validation <- data.frame(matrix(ncol=numColEV,nrow=1))
