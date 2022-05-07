@@ -54,10 +54,8 @@ if(is.null(conf)){
   articles <- loadCSV(inputDir,conf$fileArticles)
   numArticles <- nrow(articles)
   summaries <- loadCSV(inputDir,conf$fileSummaries)  
-  sampleSize <- conf$sampleSize*numArticles/100
-  sampleSize <- round(sampleSize,0)
-  samplePositions <- sample(1:numArticles,sampleSize,replace=F)
-  samplePositions <- sort(samplePositions)
+  sampleSize <- round(conf$sampleSize*numArticles/100,0)
+  samplePositions <- sort(sample(1:numArticles,sampleSize,replace=F))
   articles <- articles[samplePositions,]
   summaries <- as.data.frame(summaries[samplePositions,])
   # summaries$position <- samplePositions

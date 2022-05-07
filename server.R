@@ -121,9 +121,10 @@ server <- function(input, output, session) {
       }
       else{
         sidebarMenu(
-          menuItem('Configurar "Validar Resúmenes"', tabName = "manageEvalSummaries", icon = icon("fal fa-database")),
+          menuItem('Configurar "Validar Resúmenes"', tabName = "manageEvalSummaries", icon = icon("fal fa-cog")),
           menuItem('Dashboard "Validar Resúmenes"', tabName = "dashboadEvalSummaries", icon = icon("tachometer-alt",lib = "font-awesome")),
-          menuItem('Gestionar Usuarios', tabName = "users", icon = icon("fal fa-user"))
+          menuItem('Gestionar Usuarios', tabName = "users", icon = icon("fal fa-user")),
+          menuItem('Gestionar datos', tabName = "manageData", icon = icon("fal fa-database"))
         )
       }
     }
@@ -256,22 +257,22 @@ server <- function(input, output, session) {
                       box(width=6,
                         numericInput("sample",label='Seleccione el tamaño de la muestra a validar [en %]',
                                      min=1, max=100, value=conf$sampleSize),
-                        p("El tamaño de la muestra sería (nº): "), verbatimTextOutput("numberRowsSample"),
-                        actionButton("saveSample", label= "Guardar",class="btn-primary"))
-                      )), #outer box y fluidRow
+                        p("El tamaño de la muestra sería (nº): "), verbatimTextOutput("numberRowsSample")#,
+                        #actionButton("saveSample", label= "Guardar",class="btn-primary"))
+                      ))), 
                     fluidRow(
                       box(title="Número de validaciones y nivel de acuerdo mínimo por resumen", width = 12, solidHeader = TRUE,status = "primary",
                           box(title="Número mínimo de validaciones por resumen", width = 6, 
                               strong("Mínimo número actual de validaciones por resumen: "), verbatimTextOutput("minValid"),
                               sliderInput("minValid",label='Seleccione el número mínimo de validaciones por resumen:',
-                                          min=0, max=10, value = conf$minNumValid),                         
-                              actionButton("saveMinValid", label= "Guardar",class="btn-primary")),
+                                          min=0, max=10, value = conf$minNumValid)),                         
+                              #actionButton("saveMinValid", label= "Guardar",class="btn-primary")),
                           box(title="Mínimo % de nivel de acuerdo por resumen", width = 6, 
                               strong("Mínimo % actual de acuerdo por resumen: "), verbatimTextOutput("minAgreem"),
                               sliderInput("minAgreem",label='Seleccione el tamaño de la muestra a validar [en %]',
-                                          min=0, max=100, value = conf$minLevelAgreem),
-                              actionButton("saveMinAgreem", label= "Guardar",class="btn-primary"))
-                    )), #outer box y fluidRow
+                                          min=0, max=100, value = conf$minLevelAgreem)#,
+                              #actionButton("saveMinAgreem", label= "Guardar",class="btn-primary"))
+                    ))), 
                     fluidRow(
                       box(width = 12, title = "Gestión de ficheros",solidHeader = TRUE,status = "primary",
                           box(title="Fichero de artículos a validar", width = 6, 
@@ -283,8 +284,8 @@ server <- function(input, output, session) {
                                 condition = "input.changeArticlesFile == 1",
                                 fileInput("newArticlesFile",label="Subir el nuevo fichero con los resúmenes a validar (solo csv)",
                                           multiple = FALSE, accept = ".csv")
-                              ),#conditional Panel 
-                              actionButton("saveArticlesFile", label= "Guardar",class="btn-primary")
+                              )#,#conditional Panel 
+                              #actionButton("saveArticlesFile", label= "Guardar",class="btn-primary")
                           ),#box fichero de artículos a validar
                           box(title="Fichero de resúmenes a validar", width = 6, 
                               strong("Nombre del fichero actual:"),verbatimTextOutput("currentSummariesFile"),
@@ -295,10 +296,11 @@ server <- function(input, output, session) {
                                 condition = "input.changeSummariesFile == 1",
                                 fileInput("newSummariesFile",label="Subir el nuevo fichero con los resúmenes a validar (solo csv)",
                                           multiple = FALSE, accept = ".csv")
-                              ),#conditional Panel 
-                              actionButton("saveSummariesFile", label= "Guardar",class="btn-primary")
-                          )
+                              )#,#conditional Panel 
+                              #actionButton("saveSummariesFile", label= "Guardar",class="btn-primary")
+                          ),
                       )),#outer box y fluidRow
+                    actionButton("saveConfig", label= "Guardar configuración",class="btn-info")
              ),#tabItem manageEvalSummaries
             tabItem(tabName ="dashboadEvalSummaries",
                     fluidRow(
@@ -435,6 +437,10 @@ server <- function(input, output, session) {
   })
 
 ######## Admin 
+  
+  # Configure Experiment
+  ######
+  
   # Reactives Value to store the the current name of the file of summaries and articles that are being validated
   SAMPLE_ROWS <- reactiveValues(size = sampleSize) #SAMPLE$size
   SAMPLE_PERC <- reactiveValues(size = conf$sampleSize) #SAMPLE$size
@@ -459,8 +465,6 @@ server <- function(input, output, session) {
     round(input$sample*numArticles/100,0)
   }) 
   
- 
-  
   output$minValid <- renderPrint({
     MIN_VALID$n
   })
@@ -477,80 +481,134 @@ server <- function(input, output, session) {
     ARTIC_FILE$fileName
   })
 
-  observeEvent(input$saveSample,{
+  observeEvent(input$saveConfig,{
+    #save input values in case there are changes
     conf$sampleSize <<- input$sample
     SAMPLE_PERC$size <- input$sample
-    SAMPLE_ROWS$size <-   round(input$sample*numArticles/100,0)
-    filePath <- file.path(tempdir(),"conf.csv")
-    write.table(conf,file=filePath,append = FALSE,sep=',',row.names = FALSE)
-    drop_upload(filePath,inputDir)
-    shinyalert(title="Configuración actualizada",type="success")
-  })
-  
-  observeEvent(input$saveMinValid,{
+    SAMPLE_ROWS$size <- round(input$sample*numArticles/100,0)
     conf$minNumValid <<- input$minValid
     MIN_VALID$n <- input$minValid
-    filePath <- file.path(tempdir(),"conf.csv")
-    write.table(conf,file=filePath,append = FALSE,sep=',',row.names = FALSE)
-    drop_upload(filePath,inputDir)
-    shinyalert(title="Configuración actualizada",type="success")
-  })
-  
-  observeEvent(input$saveMinAgreem,{
     conf$minLevelAgreem <<- input$minAgreem
     MIN_AGREEM$l <- input$minAgreem
-    filePath <- file.path(tempdir(),"conf.csv")
-    write.table(conf,file=filePath,append = FALSE,sep=',',row.names = FALSE)
-    drop_upload(filePath,inputDir)
-    shinyalert(title="Configuración actualizada",type="success")
-  })
 
-  observeEvent(input$saveSummariesFile,{
-    if(input$changeSummariesFile == 1){ #se podría verificar que tenga el formato correcto
+    if(input$changeSummariesFile == 1){ 
       if(input$newSummariesFile$type == "text/csv"){
         conf$fileSummaries <<- input$newSummariesFile$name
         SUMM_FILE$fileName <- input$newSummariesFile$name
-        filePathConf <- file.path(tempdir(),"conf.csv")
-        write.table(conf,file=filePathConf,append = FALSE,sep=',',row.names = FALSE)
-        drop_upload(filePathConf,inputDir)
+        #load new summaries file
         dir.create("tempdir")
         file.copy(input$newSummariesFile$datapath, file.path("tempdir",input$newSummariesFile$name))
-        drop_upload(paste0("tempdir/",input$newSummariesFile$name),inputDir, mode = "overwrite") #no hace overwrite
+        drop_upload(paste0("tempdir/",input$newSummariesFile$name),inputDir, mode = "overwrite") 
         summaries <<- loadCSV(inputDir,conf$fileSummaries)
-        # sampleSize <<- round(conf$sampleSize*numArticles/100,0)
-        # samplePositions <<- sort(sample(1:numArticles,sampleSize,replace=F))
-        # articles <<- articles[samplePositions,]
-        # summaries <<- as.data.frame(summaries[samplePositions,])
-        shinyalert(title="Configuración actualizada",type="success")
       }
       else{
-        shinyalert(title="Error en el tipo de fichero seleccionado, no se subirá el nuevo fichero",type="error")
-        message("No se puede cargar el fichero seleccionado porque no es de tipo csv")
+        msg <- paste0("No se puede cargar el fichero ",conf$fileSummaries ," porque no es de tipo csv")
+        shinyalert(title=msg,type="warning")
+        message(msg)
       }
     }
-    })
 
-  observeEvent(input$saveArticlesFile,{
-    if(input$changeArticlesFile == 1){ #se podría verificar que tenga el formato correcto
+    if(input$changeArticlesFile == 1){ 
       if(input$newArticlesFile$type == "text/csv"){
         conf$fileArticles <<- input$newArticlesFile$name
         ARTIC_FILE$fileName <- input$newArticlesFile$name
-        filePathConf <- file.path(tempdir(),"conf.csv")
-        write.table(conf,file=filePathConf,append = FALSE,sep=',',row.names = FALSE)
-        drop_upload(filePathConf,inputDir)
+        #load new articles file
         dir.create("tempdir")
         file.copy(input$newArticlesFile$datapath, file.path("tempdir",input$newArticlesFile$name))
-        drop_upload(paste0("tempdir/",input$newArticlesFile$name),inputDir, mode = "overwrite") #no hace overwrite
+        drop_upload(paste0("tempdir/",input$newArticlesFile$name),inputDir, mode = "overwrite") 
         articles <- loadCSV(inputDir,conf$fileArticles)
-        numArticles <- nrow(articles)
-        shinyalert(title="Configuración actualizada",type="success")
+        numArticles <<- nrow(articles)
       }
       else{
-        shinyalert(title="Error en el tipo de fichero seleccionado, no se subirá el nuevo fichero",type="error")
-        message("No se puede cargar el fichero seleccionado porque no es de tipo csv")
+        msg <- paste0("No se puede cargar el fichero ",conf$fileArticles," porque no es de tipo csv")
+        shinyalert(title=msg,type="warning")
+        message(msg)
       }
     }
+    filePath <- file.path(tempdir(),"conf.csv")
+    write.table(conf,file=filePath,append = FALSE,sep=',',row.names = FALSE)
+    drop_upload(filePath,inputDir)
+    sampleSize <<- round(conf$sampleSize*numArticles/100,0)
+    samplePositions <<- sort(sample(1:numArticles,sampleSize,replace=F))
+    articles <<- articles[samplePositions,]
+    summaries <<- as.data.frame(summaries[samplePositions,])
+    shinyalert(title="Configuración actualizada",type="success")
   })
+  
+  # observeEvent(input$saveSample,{
+  #   conf$sampleSize <<- input$sample
+  #   SAMPLE_PERC$size <- input$sample
+  #   SAMPLE_ROWS$size <-   round(input$sample*numArticles/100,0)
+  #   filePath <- file.path(tempdir(),"conf.csv")
+  #   write.table(conf,file=filePath,append = FALSE,sep=',',row.names = FALSE)
+  #   drop_upload(filePath,inputDir)
+  #   shinyalert(title="Configuración actualizada",type="success")
+  # })
+  # 
+  # observeEvent(input$saveMinValid,{
+  #   conf$minNumValid <<- input$minValid
+  #   MIN_VALID$n <- input$minValid
+  #   filePath <- file.path(tempdir(),"conf.csv")
+  #   write.table(conf,file=filePath,append = FALSE,sep=',',row.names = FALSE)
+  #   drop_upload(filePath,inputDir)
+  #   shinyalert(title="Configuración actualizada",type="success")
+  # })
+  # 
+  # observeEvent(input$saveMinAgreem,{
+  #   conf$minLevelAgreem <<- input$minAgreem
+  #   MIN_AGREEM$l <- input$minAgreem
+  #   filePath <- file.path(tempdir(),"conf.csv")
+  #   write.table(conf,file=filePath,append = FALSE,sep=',',row.names = FALSE)
+  #   drop_upload(filePath,inputDir)
+  #   shinyalert(title="Configuración actualizada",type="success")
+  # })
+  # 
+  # observeEvent(input$saveSummariesFile,{
+  #   if(input$changeSummariesFile == 1){ #se podría verificar que tenga el formato correcto
+  #     if(input$newSummariesFile$type == "text/csv"){
+  #       conf$fileSummaries <<- input$newSummariesFile$name
+  #       SUMM_FILE$fileName <- input$newSummariesFile$name
+  #       filePathConf <- file.path(tempdir(),"conf.csv")
+  #       write.table(conf,file=filePathConf,append = FALSE,sep=',',row.names = FALSE)
+  #       drop_upload(filePathConf,inputDir)
+  #       dir.create("tempdir")
+  #       file.copy(input$newSummariesFile$datapath, file.path("tempdir",input$newSummariesFile$name))
+  #       drop_upload(paste0("tempdir/",input$newSummariesFile$name),inputDir, mode = "overwrite") #no hace overwrite
+  #       summaries <<- loadCSV(inputDir,conf$fileSummaries)
+  #       # sampleSize <<- round(conf$sampleSize*numArticles/100,0)
+  #       # samplePositions <<- sort(sample(1:numArticles,sampleSize,replace=F))
+  #       # articles <<- articles[samplePositions,]
+  #       # summaries <<- as.data.frame(summaries[samplePositions,])
+  #       shinyalert(title="Configuración actualizada",type="success")
+  #     }
+  #     else{
+  #       shinyalert(title="Error en el tipo de fichero seleccionado, no se subirá el nuevo fichero",type="error")
+  #       message("No se puede cargar el fichero seleccionado porque no es de tipo csv")
+  #     }
+  #   }
+  #   })
+  # 
+  # observeEvent(input$saveArticlesFile,{
+  #   if(input$changeArticlesFile == 1){ #se podría verificar que tenga el formato correcto
+  #     if(input$newArticlesFile$type == "text/csv"){
+  #       conf$fileArticles <<- input$newArticlesFile$name
+  #       ARTIC_FILE$fileName <- input$newArticlesFile$name
+  #       filePathConf <- file.path(tempdir(),"conf.csv")
+  #       write.table(conf,file=filePathConf,append = FALSE,sep=',',row.names = FALSE)
+  #       drop_upload(filePathConf,inputDir)
+  #       dir.create("tempdir")
+  #       file.copy(input$newArticlesFile$datapath, file.path("tempdir",input$newArticlesFile$name))
+  #       drop_upload(paste0("tempdir/",input$newArticlesFile$name),inputDir, mode = "overwrite") #no hace overwrite
+  #       articles <- loadCSV(inputDir,conf$fileArticles)
+  #       numArticles <- nrow(articles)
+  #       shinyalert(title="Configuración actualizada",type="success")
+  #     }
+  #     else{
+  #       shinyalert(title="Error en el tipo de fichero seleccionado, no se subirá el nuevo fichero",type="error")
+  #       message("No se puede cargar el fichero seleccionado porque no es de tipo csv")
+  #     }
+  #   }
+  # })
 
   output$agreementBox <- renderInfoBox({
     print("pasa por krippendorf")
