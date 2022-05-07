@@ -6,16 +6,13 @@ library(sodium) #encrypt passwords
 library(tidyverse)
 library(dplyr)
 library(tidyr)
-#library(reactlog) #reactive graph
 library(shinyalert)
 library(DT)
 library(krippendorffsalpha)
 library(RColorBrewer)
 library(ggplot2)
-library(rdrop2)
-#library(httr)
+#library(rdrop2)
 
-#reactiveConsole(TRUE)
 
 # Main login screen
 #####
@@ -50,29 +47,28 @@ loginpage <- div(id = "loginpage", style = "width: 500px; max-width: 100%; margi
 #####
 server <- function(input, output, session) {
 
-  #LOGIN
+  #LOGIN: SHOW APPROPIATE INTERFACE 
   ######
-  login = FALSE
+  login <- FALSE
   USER <- reactiveValues(login = login)
+  name <- NULL##new
+  USERNAME <- reactiveValues(name = name)##new
   
   observe({ 
     if (USER$login == FALSE) {
-      print("llega a login == FALSE")
-      print(paste0("input$login ",input$login))
       if (!is.null(input$login)) {
-        print("LLega a login not null")
         if (input$login > 0) {
-          print("LLega a usuario logado")
           Username <- isolate(input$userName)
           Password <- isolate(input$passwd)
           if(!is.null(credentials)){
             if(length(which(credentials$username_id==Username))==1) { 
               pasmatch  <- credentials["passod"][which(credentials$username_id==Username),]
               pasverify <- password_verify(pasmatch, Password)
-              #pasverify
+              Password <- NULL # to avoid keeping the password available
               if(pasverify) {
                 USER$login <- TRUE
-                Password <- NULL # to avoid keeping the password available
+                USERNAME$name <- Username ##new
+                #Password <- NULL # to avoid keeping the password available ---> lo moví arriba
               } 
               else {
                 shinyjs::toggle(id = "no password match", anim = TRUE, time = 1, animType = "fade")
@@ -93,7 +89,6 @@ server <- function(input, output, session) {
         } # end if(input$login > 0)
       } # end if(!is.null(input$login))
     } # end if(USER$login == FALSE)
-    print("pasa por end el de if(USER$login == FALSE)")
   }) # end observe
   
   ######
@@ -111,9 +106,8 @@ server <- function(input, output, session) {
   # Type of user 
   typeUser <- reactive ({
     req(USER$login)
-    Username <- input$userName  
-    # don't need to check if credential is loaded, can't reach this point if it wasn't loaded.
-    credentials["permission"][which(credentials$username_id==Username),] 
+    # Don't need to check if credential is loaded, can't reach this point if it wasn't loaded.
+    credentials["permission"][which(credentials$username_id==USERNAME$name),] 
   })
 
   ######
@@ -137,54 +131,90 @@ server <- function(input, output, session) {
   })
 
   ######
-  # REACTIVE VALUES
+  # LOAD EXPERTS VALIDATIONS (file with responses)
+  
+  VALID_LOADED <- reactiveValues(loaded = FALSE) #VALID_LOADED$loaded
+  FILENAMEEV <- reactiveValues(name = "") #FILENAMEEV$name
+  
+  # observe({
+  #   req(USER$login)
+  #   FILENAMEEV$name <- paste0("validations-",USERNAME$name,".csv")
+  # })
+  
+  df <- data.frame(matrix(ncol=numColEV,nrow=0))
+  colnames(df) <- expertsValidationsColNames
+  EXPERTS_VALIDATIONS <- reactiveValues(df = df) #EXPERTS_VALIDATIONS$df
+  
+  # observe({
+  #   req(USER$login)
+  #   req(FILENAMEEV$name)
+  #   print(FILENAMEEV$name)
+  #   x <- drop_search(FILENAMEEV$name)
+  #   if(x$start == 0){ # File doesn't exists --> create empty structure
+  #     msg <- paste0("El fichero ",FILENAMEEV$name, " con las validaciones de los usuarios no existe y se va a crear uno vacío.")
+  #     message(msg)
+  #     expertsValidations <- data.frame(matrix(ncol=numColEV,nrow=0))
+  #     colnames(expertsValidations) <- expertsValidationsColNames
+  #     filePath <- file.path(tempdir(),FILENAMEEV$name)
+  #     write.table(expertsValidations,file=filePath,sep=',',row.names = FALSE)
+  #     drop_upload(filePath,outputDir) 
+  #     message(paste0("Creado fichero",FILENAMEEV$name))
+  #   }
+  #   EXPERTS_VALIDATIONS$df <- loadCSV(outputDir,FILENAMEEV$name)
+  #   print(EXPERTS_VALIDATIONS$df)
+  #   VALID_LOADED$loaded <- TRUE
+  # })
+  
+  ######
+  # LOAD TITLES TO VALIDATE
   
   # Reactive Value to store the the current name of the file of summaries and articles that are being validated
   SUMM_FILE <- reactiveValues(fileName = conf$fileSummaries) #SUMM_FILE$fileName
-  ARTIC_FILE <- reactiveValues(fileName = conf$fileArticles)
+  ARTIC_FILE <- reactiveValues(fileName = conf$fileArticles) #ARTIC_FILE$fileName
   
   # Reactive Value to store the position of all validated titles perform by the user (previous and new)
   positions <- data.frame(matrix(ncol=1,nrow=0))
   colnames(positions) <- c("position")
   VALIDATIONS <- reactiveValues(positions = positions) #VALIDATIONS$positions
-
-  # Reactive Value to store the titles that needs validation from the user
+  
+  # Reactive Value to store the titles that need validation from the user
   userTitles <- data.frame(matrix(ncol=1,nrow=0))
   colnames(userTitles) <- c("title")
   TITLES <- reactiveValues(userTitles = userTitles) #TITLES$userTitles
   print(TITLES$userTitles)
   
-  # LOAD EXPERTS VALIDATIONS (file with responses)
-  # Read it each time a user logs so the articles he needs to check are up to date. If not, unless the app stops and launches again,
-  # the user wouldn't see all the articles he validated in the previous session
   
-  fn <-"validations.csv"
-  x <- drop_search(fn)
-  #print(x)
-  if(x$start == 0){ # File doesn't exists --> create empty structure
-    msg <- paste0("El fichero ",fn, " con las validaciones de los usuarios no existe y se va a crear uno vacío.")
-    message(msg)
-    num <- length(expertsValidationsColNames)
-    expertsValidations <- data.frame(matrix(ncol=num,nrow=0))
-    colnames(expertsValidations) <- expertsValidationsColNames
-    filePath <- file.path(tempdir(),fn)
-    write.table(expertsValidations,file=filePath,sep=',',row.names = FALSE)
-    drop_upload(filePath,outputDir) #"summariesApp/responses"
-    message("Creado summariesApp/responses/validations.csv")
-  }
-  expertsValidations <- loadCSV(outputDir,fn)
-  print("cargado validations.csv")
-  print(expertsValidations)
-  #expertsValidations <- data.frame(matrix(ncol=0,nrow=0))
-
   #Generate list of titles to validate if user is expert
   observeEvent(input$login,{
-    req(USER$login)
-    print("Llega a observeEvent$login")
+  #observe({
+    #req(USER$login)
+    
+    FILENAMEEV$name <- paste0("validations-",USERNAME$name,".csv")
+
+    print(FILENAMEEV$name)
+    x <- drop_search(FILENAMEEV$name)
+    if(x$start == 0){ # File doesn't exists --> create empty structure
+      msg <- paste0("El fichero ",FILENAMEEV$name, " con las validaciones de los usuarios no existe y se va a crear uno vacío.")
+      message(msg)
+      expertsValidations <- data.frame(matrix(ncol=numColEV,nrow=0))
+      colnames(expertsValidations) <- expertsValidationsColNames
+      filePath <- file.path(tempdir(),FILENAMEEV$name)
+      write.table(expertsValidations,file=filePath,sep=',',row.names = FALSE)
+      drop_upload(filePath,outputDir) 
+      message(paste0("Creado fichero",FILENAMEEV$name))
+    }
+    EXPERTS_VALIDATIONS$df <- loadCSV(outputDir,FILENAMEEV$name)
+    print(EXPERTS_VALIDATIONS$df)
+    VALID_LOADED$loaded <- TRUE
+    
+    #req(VALID_LOADED$loaded)
+    print("Llega a VALID_LOADED$loaded")
     if (USER$login == TRUE) {
       if(typeUser() == "expert"){
         #filter positions of validated articles by logged user
-        validatedTitles <- expertsValidations %>% filter(usernameId == input$userName) %>% select(position)
+        print("Va a generar los títulos")
+        print(EXPERTS_VALIDATIONS$df)
+        validatedTitles <- EXPERTS_VALIDATIONS$df %>% filter(usernameId == input$userName) %>% select(position)
         print(validatedTitles)
         VALIDATIONS$positions <- as.data.frame(validatedTitles)
         print(VALIDATIONS$positions)
@@ -362,16 +392,19 @@ server <- function(input, output, session) {
   output$articleURL <- renderUI({
     HTML(paste0("<p><b>Para leer el artículo visite: </b><a href=",selectedArticleData()$url,' target="_blank">',selectedArticleData()$url,"</a></p>"))
   })
+  
   output$text <- renderText(selectedArticleData()$text)
+  
   output$generatedSummary <- renderText(filteredGeneratedSummary())
 
   observeEvent(input$validateButton,{
     #create structure to save validation
-    num <- length(expertsValidationsColNames)
-    validation <- data.frame(matrix(ncol=num,nrow=1))
+    # num <- length(expertsValidationsColNames)
+    # validation <- data.frame(matrix(ncol=num,nrow=1))
+    validation <- data.frame(matrix(ncol=numColEV,nrow=1))
     colnames(validation) <- expertsValidationsColNames
     #save values
-    validation$usernameId <- input$userName
+    validation$usernameId <- USERNAME$name #input$userName
     validation$position <- which(articles$title == input$selectTitle)
     validation$question1 <- input$question1
     #if the person changes his mind about question 1 after answering question 2 and 3,
@@ -392,7 +425,7 @@ server <- function(input, output, session) {
 
     #tryCatch
     #write.table(validation,file="data/expertsValidations.csv",append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
-    filePath <- file.path(tempdir(),"validations.csv")
+    filePath <- file.path(tempdir(), FILENAMEEV$name) #"validations.csv")
     write.table(validation,file=filePath,append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
     drop_upload(filePath,outputDir) #"summariesApp/responses"
 
@@ -407,40 +440,40 @@ server <- function(input, output, session) {
     updateSelectInput(session,"selectTitle",choices=TITLES$userTitles)
   })
 
-  ######
-  #User Admin
-  if(nrow(expertsValidations) > 0){
-    validationsbyUserQ1 <- expertsValidations %>% select(position,question1,usernameId) %>%  distinct(position,usernameId, .keep_all = TRUE) %>% spread(usernameId,question1)
-    print(validationsbyUserQ1)
-    # aux <- validationsbyUserQ1 %>% select(-position)
-    # numValid <- apply(X=!is.na(aux),MARGIN = 1, FUN= sum) #rowSums(!is.na(validationsbyUser))
-    # numValid <- cbind(numValid,validationsbyUserQ1$position)
-    # colnames(numValid)[2] <- "position"
-    # tableAdmin <- left_join(adminArticles,as.data.frame(numValid),by=c("row_num"="position"))
-    # tableAdmin <- left_join(tableAdmin,validationsbyUserQ1,by=c("row_num"="position"))
-    # #colnames(tableAdmin)[5] <- "numberValidations"
-    # #set.seed(123) en global
-    # # krippTable <- data.matrix(tableAdmin[,-c(1:4)]) #all articles
-    # # colnames(krippTable) <- NULL
-    # # krippAgreement <- krippendorffs.alpha(krippTable, level = "nominal", control = list(bootit = 100, parallel = FALSE),verbose = TRUE) #validationbyCoder
-    # # print(krippAgreement$alpha.hat)
-    # # summary(krippAgreement)
-    # 
-    # validationsbyUserKripp <- data.matrix(aux) #(validationsbyUser[,-c(1)])
-    # colnames(validationsbyUserKripp) <- NULL
-    # # validationsbyUserKripp <- cbind(validationsbyUserKripp,validationsbyUserKripp[,1]) #Agrego otra columna igual a ver si mejora el coeficiente
-    # krippAgreementValidated <- krippendorffs.alpha(validationsbyUserKripp,
-    #                                                level = "nominal",
-    #                                                control = list(bootit = 100, parallel = FALSE),
-    #                                                verbose = TRUE) #validationbyCoder
-    # print(krippAgreementValidated$alpha.hat)
-    # #summary(krippAgreementValidated)
-  }
-  else{
-    krippAgreementValidated <- NULL
-    krippAgreementValidated$alpha.hat <- 0
-    validationsbyUser <- data.frame(matrix(ncol=0,nrow=0))
-  }
+  # ######
+  # #User Admin ---> No puede estar suelto
+  # if(nrow(expertsValidations) > 0){
+  #   validationsbyUserQ1 <- expertsValidations %>% select(position,question1,usernameId) %>%  distinct(position,usernameId, .keep_all = TRUE) %>% spread(usernameId,question1)
+  #   print(validationsbyUserQ1)
+  #   # aux <- validationsbyUserQ1 %>% select(-position)
+  #   # numValid <- apply(X=!is.na(aux),MARGIN = 1, FUN= sum) #rowSums(!is.na(validationsbyUser))
+  #   # numValid <- cbind(numValid,validationsbyUserQ1$position)
+  #   # colnames(numValid)[2] <- "position"
+  #   # tableAdmin <- left_join(adminArticles,as.data.frame(numValid),by=c("row_num"="position"))
+  #   # tableAdmin <- left_join(tableAdmin,validationsbyUserQ1,by=c("row_num"="position"))
+  #   # #colnames(tableAdmin)[5] <- "numberValidations"
+  #   # #set.seed(123) en global
+  #   # # krippTable <- data.matrix(tableAdmin[,-c(1:4)]) #all articles
+  #   # # colnames(krippTable) <- NULL
+  #   # # krippAgreement <- krippendorffs.alpha(krippTable, level = "nominal", control = list(bootit = 100, parallel = FALSE),verbose = TRUE) #validationbyCoder
+  #   # # print(krippAgreement$alpha.hat)
+  #   # # summary(krippAgreement)
+  #   # 
+  #   # validationsbyUserKripp <- data.matrix(aux) #(validationsbyUser[,-c(1)])
+  #   # colnames(validationsbyUserKripp) <- NULL
+  #   # # validationsbyUserKripp <- cbind(validationsbyUserKripp,validationsbyUserKripp[,1]) #Agrego otra columna igual a ver si mejora el coeficiente
+  #   # krippAgreementValidated <- krippendorffs.alpha(validationsbyUserKripp,
+  #   #                                                level = "nominal",
+  #   #                                                control = list(bootit = 100, parallel = FALSE),
+  #   #                                                verbose = TRUE) #validationbyCoder
+  #   # print(krippAgreementValidated$alpha.hat)
+  #   # #summary(krippAgreementValidated)
+  # }
+  # else{
+  #   krippAgreementValidated <- NULL
+  #   krippAgreementValidated$alpha.hat <- 0
+  #   validationsbyUser <- data.frame(matrix(ncol=0,nrow=0))
+  # }
 
 
 ######## Admin 
@@ -456,7 +489,6 @@ server <- function(input, output, session) {
   output$currentArticlesFile <- renderPrint({
     ARTIC_FILE$fileName
   })
-
 
   observeEvent(input$saveSample,{
     print("pasa por observe event save sample")

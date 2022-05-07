@@ -5,10 +5,10 @@ account: soldc
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 5979963
-bundleId: 5862311
+bundleId: 5869968
 url: https://soldc.shinyapps.io/summariesApp/
-when: 1651529881.69977
-lastSyncTime: 1651529881.69978
+when: 1651680434.30729
+lastSyncTime: 1651680434.3073
 asMultiple: FALSE
 asStatic: FALSE
-ignoredFiles: fileUtilityFunctions.r|logSetup.R
+ignoredFiles: fileUtilityFunctions.r|logSetup.R|README.md
