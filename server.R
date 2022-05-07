@@ -131,44 +131,18 @@ server <- function(input, output, session) {
   })
 
   ######
-  # LOAD EXPERTS VALIDATIONS (file with responses)
+  # LOAD EXPERTS VALIDATIONS (file with responses) AND GENERATE TITLES TO VALIDATE
   
-  VALID_LOADED <- reactiveValues(loaded = FALSE) #VALID_LOADED$loaded
+  # Reactive Value to store what should be the name of the validations file depending on user and if the file was loaded (control variable)
+  #VALID_LOADED <- reactiveValues(loaded = FALSE) #VALID_LOADED$loaded
   FILENAMEEV <- reactiveValues(name = "") #FILENAMEEV$name
   
-  # observe({
-  #   req(USER$login)
-  #   FILENAMEEV$name <- paste0("validations-",USERNAME$name,".csv")
-  # })
-  
+  # Reactive Value to store the user's previous validations stored in the file
   df <- data.frame(matrix(ncol=numColEV,nrow=0))
   colnames(df) <- expertsValidationsColNames
   EXPERTS_VALIDATIONS <- reactiveValues(df = df) #EXPERTS_VALIDATIONS$df
-  
-  # observe({
-  #   req(USER$login)
-  #   req(FILENAMEEV$name)
-  #   print(FILENAMEEV$name)
-  #   x <- drop_search(FILENAMEEV$name)
-  #   if(x$start == 0){ # File doesn't exists --> create empty structure
-  #     msg <- paste0("El fichero ",FILENAMEEV$name, " con las validaciones de los usuarios no existe y se va a crear uno vacío.")
-  #     message(msg)
-  #     expertsValidations <- data.frame(matrix(ncol=numColEV,nrow=0))
-  #     colnames(expertsValidations) <- expertsValidationsColNames
-  #     filePath <- file.path(tempdir(),FILENAMEEV$name)
-  #     write.table(expertsValidations,file=filePath,sep=',',row.names = FALSE)
-  #     drop_upload(filePath,outputDir) 
-  #     message(paste0("Creado fichero",FILENAMEEV$name))
-  #   }
-  #   EXPERTS_VALIDATIONS$df <- loadCSV(outputDir,FILENAMEEV$name)
-  #   print(EXPERTS_VALIDATIONS$df)
-  #   VALID_LOADED$loaded <- TRUE
-  # })
-  
-  ######
-  # LOAD TITLES TO VALIDATE
-  
-  # Reactive Value to store the the current name of the file of summaries and articles that are being validated
+
+   # Reactives Value to store the the current name of the file of summaries and articles that are being validated
   SUMM_FILE <- reactiveValues(fileName = conf$fileSummaries) #SUMM_FILE$fileName
   ARTIC_FILE <- reactiveValues(fileName = conf$fileArticles) #ARTIC_FILE$fileName
   
@@ -181,19 +155,12 @@ server <- function(input, output, session) {
   userTitles <- data.frame(matrix(ncol=1,nrow=0))
   colnames(userTitles) <- c("title")
   TITLES <- reactiveValues(userTitles = userTitles) #TITLES$userTitles
-  print(TITLES$userTitles)
   
-  
-  #Generate list of titles to validate if user is expert
   observeEvent(input$login,{
-  #observe({
-    #req(USER$login)
-    
+  
     FILENAMEEV$name <- paste0("validations-",USERNAME$name,".csv")
-
-    print(FILENAMEEV$name)
     x <- drop_search(FILENAMEEV$name)
-    if(x$start == 0){ # File doesn't exists --> create empty structure
+    if(x$start == 0){ 
       msg <- paste0("El fichero ",FILENAMEEV$name, " con las validaciones de los usuarios no existe y se va a crear uno vacío.")
       message(msg)
       expertsValidations <- data.frame(matrix(ncol=numColEV,nrow=0))
@@ -204,25 +171,22 @@ server <- function(input, output, session) {
       message(paste0("Creado fichero",FILENAMEEV$name))
     }
     EXPERTS_VALIDATIONS$df <- loadCSV(outputDir,FILENAMEEV$name)
-    print(EXPERTS_VALIDATIONS$df)
-    VALID_LOADED$loaded <- TRUE
-    
+    #print(EXPERTS_VALIDATIONS$df)
+    #VALID_LOADED$loaded <- TRUE
     #req(VALID_LOADED$loaded)
-    print("Llega a VALID_LOADED$loaded")
     if (USER$login == TRUE) {
       if(typeUser() == "expert"){
         #filter positions of validated articles by logged user
-        print("Va a generar los títulos")
         print(EXPERTS_VALIDATIONS$df)
         validatedTitles <- EXPERTS_VALIDATIONS$df %>% filter(usernameId == input$userName) %>% select(position)
-        print(validatedTitles)
         VALIDATIONS$positions <- as.data.frame(validatedTitles)
-        print(VALIDATIONS$positions)
+        # Randomize titles to validate so different users validate articles in different order
         if (length(VALIDATIONS$positions > 0)){
-          TITLES$userTitles <- articles[-VALIDATIONS$positions$position,3]
+          #TITLES$userTitles <- articles[-VALIDATIONS$positions$position,3]
+          TITLES$userTitles <- sample(articles[-VALIDATIONS$positions$position,3])
         }
         else{
-          TITLES$userTitles <- articles$title
+          TITLES$userTitles <- sample(articles$title) 
         }
       } #if type user expert
     }#if login true
@@ -399,8 +363,6 @@ server <- function(input, output, session) {
 
   observeEvent(input$validateButton,{
     #create structure to save validation
-    # num <- length(expertsValidationsColNames)
-    # validation <- data.frame(matrix(ncol=num,nrow=1))
     validation <- data.frame(matrix(ncol=numColEV,nrow=1))
     colnames(validation) <- expertsValidationsColNames
     #save values
@@ -408,7 +370,7 @@ server <- function(input, output, session) {
     validation$position <- which(articles$title == input$selectTitle)
     validation$question1 <- input$question1
     #if the person changes his mind about question 1 after answering question 2 and 3,
-    #values of questions 2 and 3 need to be reseted
+    #values of questions 2 and 3 need to be reset
     if(input$question1 == 2){
       validation$question2 <- NA
       validation$question3 <- NA
@@ -436,7 +398,7 @@ server <- function(input, output, session) {
     VALIDATIONS$positions <- append(VALIDATIONS$positions$position,position)
     VALIDATIONS$positions <- as.data.frame(VALIDATIONS$positions)
     colnames(VALIDATIONS$positions) <- c("position")
-    TITLES$userTitles <- articles[-VALIDATIONS$positions$position,3] # ver de optimizar
+    TITLES$userTitles <- articles[-VALIDATIONS$positions$position,3]
     updateSelectInput(session,"selectTitle",choices=TITLES$userTitles)
   })
 

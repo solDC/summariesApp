@@ -59,8 +59,8 @@ if(is.null(conf)){
   samplePositions <- sort(samplePositions)
   articles <- articles[samplePositions,]
   summaries <- as.data.frame(summaries[samplePositions,])
-  summaries$position <- samplePositions
-  colnames(summaries) <- c("summary","articlesPosition")
+  # summaries$position <- samplePositions
+  # colnames(summaries) <- c("summary","articlesPosition")
 }
 
 # Data structure of user validation responses
