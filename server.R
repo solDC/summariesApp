@@ -115,12 +115,14 @@ server <- function(input, output, session) {
     if (USER$login == TRUE){
       if(typeUser() == "expert"){
         sidebarMenu(
+          id="tabsExpert",
           menuItem("Informacion", tabName = "information", icon = icon("fas fa-info")),
           menuItem("Validar resumen", tabName = "validate", icon = icon("th",lib = "font-awesome"))
         )
       }
       else{
         sidebarMenu(
+          id="tabsAdmin",
           menuItem('Configurar "Validar Resúmenes"', tabName = "manageEvalSummaries", icon = icon("fal fa-cog")),
           menuItem('Dashboard "Validar Resúmenes"', tabName = "dashboadEvalSummaries", icon = icon("tachometer-alt",lib = "font-awesome")),
           menuItem('Gestionar Usuarios', tabName = "users", icon = icon("fal fa-user")),
@@ -323,7 +325,7 @@ server <- function(input, output, session) {
                       ),
                       box(width = 6, title = "Modificar usuario",solidHeader = TRUE,status = "primary",
                           selectInput("usernameInputChg", label = "Seleccione",
-                                      choices = REG_USERS$users),
+                                      choices = REG_USERS$users$username_id),
                           textInput("pswInputChg", label = "Ingrese la nueva contraseña", value = ""),
                           selectInput("typeUserInputChg", label = "Seleccione",
                                       choices = list("expert", "admin")),
@@ -627,12 +629,10 @@ server <- function(input, output, session) {
   
   #Manage Users
   ######
-  REG_USERS <- reactiveValues(users = credentials$username_id) #REG_USERS$users
+  REG_USERS <- reactiveValues(users = credentials) #REG_USERS$users
   
   output$tableUsers <-  DT::renderDataTable({
-   # selectTypeUser
-   #data <- credentials[,-c(2)]
-   data <- credentials %>% select(username_id,permission) %>% filter(permission %in% input$cgTypeUser)
+   data <- REG_USERS$users %>% select(username_id,permission) %>% filter(permission %in% input$cgTypeUser)
    datatable(data, options = list(autoWidth = TRUE,searching = FALSE))
   })
   
@@ -651,8 +651,9 @@ server <- function(input, output, session) {
         write.table(newUser,file=filePath,append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
         drop_upload(filePath,inputDir)
         credentials <<- rbind(credentials,newUser)  
-        REG_USERS$users <- credentials$username_id
+        REG_USERS$users <- credentials
         shinyalert(title="Nuevo usuario creado",type="success")
+        #updateTabItems(session, inputId = "tabsAdmin", selected = "users") --> no funciona
       }
       else
       {
@@ -664,15 +665,15 @@ server <- function(input, output, session) {
   observeEvent(input$changeUser,{
     if(input$pswInputChg != ""){
       credentials["passod"][which(credentials$username_id==input$usernameInputChg),] <<- sapply(input$pswInputChg, sodium::password_store) 
-      change <- 1
       print("entro a if psw")
     }
     credentials["permission"][which(credentials$username_id==input$usernameInputChg),] <<- input$typeUserInputChg 
-      filePath <- file.path(tempdir(),"users.csv")
-      write.table(credentials,file=filePath,append = FALSE,sep=',',col.names = TRUE, row.names = FALSE)
-      drop_upload(filePath,inputDir,mode = "overwrite")
-      shinyalert(title="Cambios sobre el usuario guardados",type="success")
-      print(credentials)
+    REG_USERS$users <- credentials
+    filePath <- file.path(tempdir(),"users.csv")
+    write.table(credentials,file=filePath,append = FALSE,sep=',',col.names = TRUE, row.names = FALSE)
+    drop_upload(filePath,inputDir,mode = "overwrite")
+    shinyalert(title="Cambios sobre el usuario guardados",type="success")
+    #updateTabItems(session, inputId = "tabsAdmin", selected = "users") --> no funciona
   })
   
 }

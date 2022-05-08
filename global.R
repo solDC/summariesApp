@@ -2,6 +2,7 @@ library(shiny)
 library(shinydashboard)
 library(shinyjs)
 library(dplyr) 
+library(tidyr) #spread
 #library(readr) #read txt more efficient
 library(rdrop2)
 #library(httr)
