@@ -9,12 +9,11 @@ library(rdrop2)
 library(shinyalert)
 
 # Done once to create Dropbox authentification tokens
-# token<-drop_auth()
-# saveRDS(token, "droptoken.rds")
+ token<-drop_auth()
+ saveRDS(token, "droptoken.rds")
 
 #Dropbox auth
 token <- readRDS("droptoken.rds")
-
 
 # Set Dropbox directories
 outputDir <- "summariesApp/responses/"
@@ -43,8 +42,6 @@ loadCSV <- function(path,fileName){
 conf <- loadCSV(inputDir,"conf.csv")
 credentials <- loadCSV(inputDir,"users.csv")
 
-
-
 # Load Articles and Summaries
 # Articles and Summaries are related by its position in the file
 # I will only kept the ones the users need to validate (random sample depending on sample size defined by admin)
@@ -58,9 +55,10 @@ if(is.null(conf)){
   sampleSize <- round(conf$sampleSize*numArticles/100,0)
   samplePositions <- sort(sample(1:numArticles,sampleSize,replace=F))
   articles <- articles[samplePositions,]
+  articles$position <- samplePositions
   summaries <- as.data.frame(summaries[samplePositions,])
-  # summaries$position <- samplePositions
-  # colnames(summaries) <- c("summary","articlesPosition")
+  summaries$position <- samplePositions
+  colnames(summaries) <- c("summary","articlesPosition")
 }
 
 # Data structure of user validation responses
@@ -74,10 +72,53 @@ expertsValidationsColNames <- names
 # 2- Agrupar por position y calcular de agreement de cada resumen
 # 3- agregarlo a summaries en una nueva columna
 filesInfo <- drop_dir(outputDir)
-filePaths <- filesInfo$path_display
-expertsValidations <- lapply(filePaths, drop_read_csv, stringsAsFactors=FALSE)
-expertsValidations <- do.call(rbind,expertsValidations)
-validationsQ1 <- expertsValidations %>% select(position,question1,usernameId) %>%  distinct(position,usernameId, .keep_all = TRUE) %>% spread(usernameId,question1)
+agreem <- 0
+if(dim(filesInfo)[1] > 1  && dim(filesInfo)[2] > 1  ){#(dim(filesInfo)[1] != 0 && dim(filesInfo)[2] != 0 )
+  filePaths <- filesInfo$path_display
+  expertsValidations <- lapply(filePaths, drop_read_csv, stringsAsFactors=FALSE)
+  expertsValidations <- do.call(rbind,expertsValidations)
+  validationsQ1 <- expertsValidations %>% select(position,question1,usernameId) %>%  
+    distinct(position,usernameId, .keep_all = TRUE) %>% spread(usernameId,question1)
+  numNAQ1 <- apply(X=is.na(validationsQ1), MARGIN=1,FUN=sum)
+  # calcular el número de usuarios que han validado al menos un resumen
+  numUsers <- ncol(validationsQ1)-1 #all columns but position
+  validationsQ1$numResp <- numUsers-numNAQ1
+  df <- validationsQ1[-c(1,length(validationsQ1)-1,length(validationsQ1))]
+  comb <- combn(df,2,simplify = FALSE)
+  if (length(numResp) > 0 ){  
+    i <- 1
+    for(val in validationsQ1$numResp){
+      if(val >= conf$minNumValid){
+        validationsQ1$possPairs[i] <- factorial(val) / (2 * factorial(val - 2)) 
+      }
+      else{
+        validationsQ1$possPairs[i] <- NA
+      }
+      i <- i+1
+    }#for
+    n <- length(validationsQ1)+1
+    for(val in comb){
+      validationsQ1[n] <- (val[1]==val[2])
+      n <- n+1
+    }
+    validationsQ1$agreemCount <- rowSums(validationsQ1[,(n-length(comb)):(n-1)],na.rm = TRUE)
+    validationsQ1$agreemPerc <- validationsQ1$agreemCount / validationsQ1$possPairs * 100
+    validationsQ1$agreedAnswer <- strtoi(apply(df,1,function(x) names(which.max(table(x)))))
+    agreem <- 1
+  }
+} #outter if
+
+
+    # if(XXXXXX == 1){
+    #   validationsQ2 <- expertsValidations %>% select(position,question2,usernameId) %>%  
+    #     distinct(position,usernameId, .keep_all = TRUE) %>% spread(usernameId,question2)
+    #   validationsQ3 <- expertsValidations %>% select(position,question3,usernameId) %>%  
+    #     distinct(position,usernameId, .keep_all = TRUE) %>% spread(usernameId,question3)    
+    # }    
+
+
+  
+
 
 
 # Table used in the administrator dashboard --->   MOVER ESTO A SERVER EN LA PARTE DEL SI EL LOGADO ES EL ADMIN y REVISARLOOOOOOOO POSITIONS

@@ -173,19 +173,27 @@ server <- function(input, output, session) {
         }
         EXPERTS_VALIDATIONS$df <- loadCSV(outputDir,FILENAMEEV$name)
         #filter positions of validated articles by logged user
-        print(EXPERTS_VALIDATIONS$df)
-        validatedTitles <- EXPERTS_VALIDATIONS$df %>% filter(usernameId == input$userName) %>% select(position)
-        VALIDATIONS$positions <- as.data.frame(validatedTitles)
+        validatedTitlesPos <- EXPERTS_VALIDATIONS$df %>% select(position) #filter(usernameId == input$userName) %>% select(position)
+        VALIDATIONS$positions <- as.data.frame(validatedTitlesPos)
         # Randomize titles to validate so different users validate articles in different order
-        if (length(VALIDATIONS$positions > 0)){
-          TITLES$userTitles <- sample(articles[-VALIDATIONS$positions$position,3])
+        if (length(VALIDATIONS$positions) >= 1){
+          TITLES$userTitles <- sample(articles[!(row.names(articles) %in% VALIDATIONS$positions$position),3])
         }
         else{
           TITLES$userTitles <- sample(articles$title) 
         }
+        #discard from articles validated summaries  with common agreement
+        if (agreem == 1) {
+          posDiscard <- validationsQ1 %>% filter(agreemPerc > conf$minLevelAgreem) %>%  select(position)
+          titlesDiscard <- articles %>%  filter(position %in% posDiscard$position) %>% title
+          # articles2 <- articles2 %>% filter(!position %in% discard$position) 
+          #---> QUIERO DESCARTAR ESTOS QUE YA ESTÁN VALIDADOS PERO ME BORRA LOS ROW.NAMES QUE LOS NECESITO LUEGO
+          # articles2 <- articles2[!(row.names(articles) %in% discard$position),3]
+          }
+        
+
       } #if type user expert
     }#if login true
-    print(VALIDATIONS$positions)
   })
 
   # Body Render UI depending on logged user
@@ -267,7 +275,7 @@ server <- function(input, output, session) {
                           box(title="Número mínimo de validaciones por resumen", width = 6, 
                               strong("Mínimo número actual de validaciones por resumen: "), verbatimTextOutput("minValid"),
                               sliderInput("minValid",label='Seleccione el número mínimo de validaciones por resumen:',
-                                          min=0, max=10, value = conf$minNumValid)),                         
+                                          min=3, max=10, value = conf$minNumValid)),                         
                           box(title="Mínimo % de nivel de acuerdo por resumen", width = 6, 
                               strong("Mínimo % actual de acuerdo por resumen: "), verbatimTextOutput("minAgreem"),
                               sliderInput("minAgreem",label='Seleccione el tamaño de la muestra a validar [en %]',
@@ -421,7 +429,7 @@ server <- function(input, output, session) {
     colnames(validation) <- expertsValidationsColNames
     #save values
     validation$usernameId <- USERNAME$name #input$userName
-    validation$position <- which(articles$title == input$selectTitle)
+    validation$position <- articles[which(articles$title == input$selectTitle),6]
     validation$question1 <- input$question1
     if(input$question1 == 2){
       validation$question2 <- NA
@@ -450,7 +458,7 @@ server <- function(input, output, session) {
     VALIDATIONS$positions <- append(VALIDATIONS$positions$position,position)
     VALIDATIONS$positions <- as.data.frame(VALIDATIONS$positions)
     colnames(VALIDATIONS$positions) <- c("position")
-    TITLES$userTitles <- articles[-VALIDATIONS$positions$position,3]
+    TITLES$userTitles <- sample(articles[!(row.names(articles) %in% VALIDATIONS$positions$position),3])
     updateSelectInput(session,"selectTitle",choices=TITLES$userTitles)
   })
 
