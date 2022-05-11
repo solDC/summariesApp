@@ -9,8 +9,8 @@ library(rdrop2)
 library(shinyalert)
 
 # Done once to create Dropbox authentification tokens
- token<-drop_auth()
- saveRDS(token, "droptoken.rds")
+ # token<-drop_auth()
+ # saveRDS(token, "droptoken.rds")
 
 #Dropbox auth
 token <- readRDS("droptoken.rds")
@@ -67,25 +67,26 @@ numColEV <- length(names)
 expertsValidationsColNames <- vector("character",numColEV)
 expertsValidationsColNames <- names
 
-# Calculate individual level of agreement
-# 1- Leer todas las respuestas de usuarios y las uno en un único dataset
-# 2- Agrupar por position y calcular de agreement de cada resumen
-# 3- agregarlo a summaries en una nueva columna
+
+# Calculate individual level of agreement for question 1, it will be used to validate only articles-summaries with no agreement
 filesInfo <- drop_dir(outputDir)
 agreem <- 0
-if(dim(filesInfo)[1] > 1  && dim(filesInfo)[2] > 1  ){#(dim(filesInfo)[1] != 0 && dim(filesInfo)[2] != 0 )
+if(dim(filesInfo)[1] >= conf$minNumValid){ #&& dim(filesInfo)[2] > 1  ){#(dim(filesInfo)[1] != 0 && dim(filesInfo)[2] != 0 )
   filePaths <- filesInfo$path_display
   expertsValidations <- lapply(filePaths, drop_read_csv, stringsAsFactors=FALSE)
   expertsValidations <- do.call(rbind,expertsValidations)
-  validationsQ1 <- expertsValidations %>% select(position,question1,usernameId) %>%  
-    distinct(position,usernameId, .keep_all = TRUE) %>% spread(usernameId,question1)
+  validationsQ1 <- expertsValidations %>% 
+    filter(summariesNameFile==conf$fileSummaries && articlesNameFile==conf$fileArticles) %>% 
+    select(position,question1,usernameId) %>%  
+    distinct(position,usernameId, .keep_all = TRUE) %>% 
+    spread(usernameId,question1)
   numNAQ1 <- apply(X=is.na(validationsQ1), MARGIN=1,FUN=sum)
   # calcular el número de usuarios que han validado al menos un resumen
   numUsers <- ncol(validationsQ1)-1 #all columns but position
   validationsQ1$numResp <- numUsers-numNAQ1
-  df <- validationsQ1[-c(1,length(validationsQ1)-1,length(validationsQ1))]
-  comb <- combn(df,2,simplify = FALSE)
-  if (length(numResp) > 0 ){  
+  df1 <- validationsQ1[-c(1,length(validationsQ1),length(validationsQ1))]
+  comb <- combn(df1,2,simplify = FALSE)
+  if (length(validationsQ1$numResp) > 0 ){  
     i <- 1
     for(val in validationsQ1$numResp){
       if(val >= conf$minNumValid){
@@ -103,19 +104,65 @@ if(dim(filesInfo)[1] > 1  && dim(filesInfo)[2] > 1  ){#(dim(filesInfo)[1] != 0 &
     }
     validationsQ1$agreemCount <- rowSums(validationsQ1[,(n-length(comb)):(n-1)],na.rm = TRUE)
     validationsQ1$agreemPerc <- validationsQ1$agreemCount / validationsQ1$possPairs * 100
-    validationsQ1$agreedAnswer <- strtoi(apply(df,1,function(x) names(which.max(table(x)))))
+    validationsQ1$agreedAnswer <- strtoi(apply(df1,1,function(x) names(which.max(table(x)))))
+    i=1
+    for(val in validationsQ1$agreemPerc){
+      print(val)
+      if (is.na(val) || (val < conf$minLevelAgreem))
+        validationsQ1$agreedAnswer[i] <- NA
+      i <- i+1
+    }
     agreem <- 1
   }
+
+    if(!is.na(validationsQ1$agreedAnswer) && validationsQ1$agreedAnswer == 1){
+      validationsQ2 <- expertsValidations %>% 
+        filter(summariesNameFile==conf$fileSummaries && articlesNameFile==conf$fileArticles) %>% 
+        select(position,question2,usernameId) %>%  
+        distinct(position,usernameId, .keep_all = TRUE) %>% 
+        spread(usernameId,question2)
+      
+      validationsQ3 <- expertsValidations %>% 
+        filter(summariesNameFile==conf$fileSummaries && articlesNameFile==conf$fileArticles) %>% 
+        select(position,question3,usernameId) %>%  
+        distinct(position,usernameId, .keep_all = TRUE) %>% 
+        spread(usernameId,question3)
+      
+      # numNAQ2 <- apply(X=is.na(validationsQ2), MARGIN=1,FUN=sum)
+      # numNAQ3 <- apply(X=is.na(validationsQ2), MARGIN=1,FUN=sum)
+      # # calcular el número de usuarios que han validado al menos un resumen
+      # numUsers <- ncol(validationsQ1)-1 #all columns but position
+      # validationsQ1$numResp <- numUsers-numNAQ1
+      # df1 <- validationsQ1[-c(1,length(validationsQ1),length(validationsQ1))]
+      # comb <- combn(df1,2,simplify = FALSE)
+      # if (length(validationsQ1$numResp) > 0 ){  
+      #   i <- 1
+      #   for(val in validationsQ1$numResp){
+      #     if(val >= conf$minNumValid){
+      #       validationsQ1$possPairs[i] <- factorial(val) / (2 * factorial(val - 2)) 
+      #     }
+      #     else{
+      #       validationsQ1$possPairs[i] <- NA
+      #     }
+      #     i <- i+1
+      #   }#for
+      #   n <- length(validationsQ1)+1
+      #   for(val in comb){
+      #     validationsQ1[n] <- (val[1]==val[2])
+      #     n <- n+1
+      #   }
+      #   validationsQ1$agreemCount <- rowSums(validationsQ1[,(n-length(comb)):(n-1)],na.rm = TRUE)
+      #   validationsQ1$agreemPerc <- validationsQ1$agreemCount / validationsQ1$possPairs * 100
+      #   validationsQ1$agreedAnswer <- strtoi(apply(df1,1,function(x) names(which.max(table(x)))))
+      #   i=1
+      #   for(val in validationsQ1$agreemPerc){
+      #     print(val)
+      #     if (is.na(val) || (val < conf$minLevelAgreem))
+      #       validationsQ1$agreedAnswer[i] <- NA
+      #     i <- i+1
+      #   }
+    }
 } #outter if
-
-
-    # if(XXXXXX == 1){
-    #   validationsQ2 <- expertsValidations %>% select(position,question2,usernameId) %>%  
-    #     distinct(position,usernameId, .keep_all = TRUE) %>% spread(usernameId,question2)
-    #   validationsQ3 <- expertsValidations %>% select(position,question3,usernameId) %>%  
-    #     distinct(position,usernameId, .keep_all = TRUE) %>% spread(usernameId,question3)    
-    # }    
-
 
   
 

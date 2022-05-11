@@ -183,14 +183,14 @@ server <- function(input, output, session) {
           TITLES$userTitles <- sample(articles$title) 
         }
         #discard from articles validated summaries  with common agreement
-        if (agreem == 1) {
-          posDiscard <- validationsQ1 %>% filter(agreemPerc > conf$minLevelAgreem) %>%  select(position)
-          titlesDiscard <- articles %>%  filter(position %in% posDiscard$position) %>% title
-          # articles2 <- articles2 %>% filter(!position %in% discard$position) 
-          #---> QUIERO DESCARTAR ESTOS QUE YA ESTÁN VALIDADOS PERO ME BORRA LOS ROW.NAMES QUE LOS NECESITO LUEGO
-          # articles2 <- articles2[!(row.names(articles) %in% discard$position),3]
-          }
-        
+        # if (agreem == 1) {
+        #   posDiscard <- validationsQ1 %>% filter(agreemPerc > conf$minLevelAgreem) %>%  select(position)
+        #   titlesDiscard <- articles %>%  filter(position %in% posDiscard$position) %>% title
+        #   # articles2 <- articles2 %>% filter(!position %in% discard$position) 
+        #   #---> QUIERO DESCARTAR ESTOS QUE YA ESTÁN VALIDADOS PERO ME BORRA LOS ROW.NAMES QUE LOS NECESITO LUEGO
+        #   # articles2 <- articles2[!(row.names(articles) %in% discard$position),3]
+        #   }
+        # 
 
       } #if type user expert
     }#if login true
@@ -388,7 +388,7 @@ server <- function(input, output, session) {
   
   output$expertGreetingBox <- renderInfoBox({
     infoBox(
-      "Welcome",
+      "Hola,",
       USERNAME$name,
       icon = icon("fal fa-user"),   # ("glyphicon-check", lib = "glyphicon"),
       color = "purple"
