@@ -45,6 +45,8 @@ loginpage <- div(id = "loginpage", style = "width: 500px; max-width: 100%; margi
 
 #####
 server <- function(input, output, session) {
+  
+
 
   #LOGIN: SHOW APPROPIATE INTERFACE 
   ######
@@ -155,6 +157,11 @@ server <- function(input, output, session) {
   colnames(userTitles) <- c("title")
   TITLES <- reactiveValues(userTitles = userTitles) #TITLES$userTitles
   
+  # Reactive Value to store the articles which summaries the user needs to validate
+  # dfA <- data.frame(matrix(ncol=length(articles),nrow=0))
+  # colnames(dfA) <-colnames(articles)
+  ARTICLES <- reactiveValues(df = articles) #ARTICLES$df
+  
   ######
   observeEvent(input$login,{
     if (USER$login == TRUE) {
@@ -175,25 +182,22 @@ server <- function(input, output, session) {
         #filter positions of validated articles by logged user
         validatedTitlesPos <- EXPERTS_VALIDATIONS$df %>% select(position) #filter(usernameId == input$userName) %>% select(position)
         VALIDATIONS$positions <- as.data.frame(validatedTitlesPos)
-        # Randomize titles to validate so different users validate articles in different order
+        # If there's agreement in certain summaries-articles, there's no need of validating them any more
+        if(agreem==1){
+          posDiscard <- validationsQ1 %>% filter(agreemPerc > conf$minLevelAgreem) %>%  select(position)
+          print(posDiscard$position)
+          ARTICLES$df <- subset(articles,!(position %in% posDiscard$position))
+        }
+        # Randomize titles to validate so different users validate articles in different order 
         if (length(VALIDATIONS$positions) >= 1){
-          TITLES$userTitles <- sample(articles[!(row.names(articles) %in% VALIDATIONS$positions$position),3])
+          TITLES$userTitles <- sample(ARTICLES$df[!(row.names(ARTICLES$df) %in% VALIDATIONS$positions$position),3])
         }
         else{
-          TITLES$userTitles <- sample(articles$title) 
+          TITLES$userTitles <- sample(ARTICLES$df$title) 
         }
-        #discard from articles validated summaries  with common agreement
-        # if (agreem == 1) {
-        #   posDiscard <- validationsQ1 %>% filter(agreemPerc > conf$minLevelAgreem) %>%  select(position)
-        #   titlesDiscard <- articles %>%  filter(position %in% posDiscard$position) %>% title
-        #   # articles2 <- articles2 %>% filter(!position %in% discard$position) 
-        #   #---> QUIERO DESCARTAR ESTOS QUE YA ESTÁN VALIDADOS PERO ME BORRA LOS ROW.NAMES QUE LOS NECESITO LUEGO
-        #   # articles2 <- articles2[!(row.names(articles) %in% discard$position),3]
-        #   }
-        # 
-
       } #if type user expert
     }#if login true
+    print(TITLES$userTitles)
   })
 
   # Body Render UI depending on logged user
@@ -404,10 +408,12 @@ server <- function(input, output, session) {
     )
   })
   
+  PENDING <- reactiveValues(userTitles = )
+  
   output$expertPendingBox <- renderInfoBox({
     infoBox(
       "Pending Validation",
-      nrow(articles) - nrow(distinct(VALIDATIONS$positions)),
+      nrow(ARTICLES$df), #- nrow(distinct(VALIDATIONS$positions)), length(intersect(distinct(VALIDATIONS$positions),ARTICLES$df)),#
       icon = icon("fal fa-edit"), #("glyphicon-edit", lib = "glyphicon"),
       color = "maroon"
     )
@@ -458,7 +464,7 @@ server <- function(input, output, session) {
     VALIDATIONS$positions <- append(VALIDATIONS$positions$position,position)
     VALIDATIONS$positions <- as.data.frame(VALIDATIONS$positions)
     colnames(VALIDATIONS$positions) <- c("position")
-    TITLES$userTitles <- sample(articles[!(row.names(articles) %in% VALIDATIONS$positions$position),3])
+    TITLES$userTitles <- sample(ARTICLES$df[!(row.names(ARTICLES$df) %in% VALIDATIONS$positions$position),3])
     updateSelectInput(session,"selectTitle",choices=TITLES$userTitles)
   })
 
@@ -546,6 +552,7 @@ server <- function(input, output, session) {
         drop_upload(paste0("tempdir/",input$newArticlesFile$name),inputDir, mode = "overwrite") 
         articles <- loadCSV(inputDir,conf$fileArticles)
         numArticles <<- nrow(articles)
+        ARTICLES$df <- articles
       }
       else{
         msg <- paste0("No se puede cargar el fichero ",conf$fileArticles," porque no es de tipo csv")
