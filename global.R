@@ -9,8 +9,8 @@ library(rdrop2)
 library(shinyalert)
 
 # Done once to create Dropbox authentification tokens
-# token<-drop_auth()
-# saveRDS(token, "droptoken.rds")
+#token<-drop_auth()
+#saveRDS(token, "droptoken.rds")
 
 #Dropbox auth
 token <- readRDS("droptoken.rds")
@@ -67,23 +67,13 @@ numColEV <- length(names)
 expertsValidationsColNames <- vector("character",numColEV)
 expertsValidationsColNames <- names
 
+# Variable used to check if there are articles-summaries with agreement
+# agreem <- 0
+# Variables used to re-calculate agreement and discard titles to validate if necessary
+validGlobal <- 0
+validIni <- 0
 
 
 
 # Table used in the administrator dashboard --->   MOVER ESTO A SERVER EN LA PARTE DEL SI EL LOGADO ES EL ADMIN y REVISARLOOOOOOOO POSITIONS
-if(is.null(articles)){
-  message("El fichero con los artículos cuyos resúmenes hay que validar no se ha cargado.")
-} else{
-  adminArticles <- articles %>% select(title)
-  adminArticles$row_num <- samplePositions
-  adminArticles <- adminArticles[,c(ncol(adminArticles),1:(ncol(adminArticles)-1))] #dejar row_num como primera columna del dataset
-  if(is.null(summaries)){
-    message("El fichero con los resúmenes no se ha cargado.")
-  }
-  else{
-    adminArticles <- cbind(adminArticles,summaries)
-    names(adminArticles)[3] <- "generatedSummary" #Era el 4 campo pero me cargo objective summary
-    #names(adminArticles)[3] <- "objectiveSummary"
-    #print(adminArticles)
-  }
-}
+

@@ -60,7 +60,6 @@ server <- function(input, output, session) {
       distinct(position,usernameId, .keep_all = TRUE) %>% 
       spread(usernameId,question1)
     numNAQ1 <- apply(X=is.na(validationsQ1), MARGIN=1,FUN=sum)
-    # calcular el número de usuarios que han validado al menos un resumen
     numUsers <- ncol(validationsQ1)-1 #all columns but position
     validationsQ1$numResp <- numUsers-numNAQ1
     df1 <- validationsQ1[-c(1,length(validationsQ1),length(validationsQ1))]
@@ -243,7 +242,27 @@ server <- function(input, output, session) {
         else{
           TITLES$userTitles <- sample(ARTICLES$df$title)
         }
-      } #if type user expert
+      }
+      else{#user admin
+        if(is.null(articles)){
+          message("El fichero con los artículos cuyos resúmenes hay que validar no se ha cargado.")
+        } 
+        else{
+          if(is.null(summaries)){
+            message("El fichero con los resúmenes no se ha cargado.")
+          }
+          else{
+            print("crea admin articles")
+            adminArticles <- cbind(articles,summaries$summary)
+            names(adminArticles)[length(adminArticles)] <- "generatedSummary" 
+            #agregar nivel de cuerdo
+            if(agreem == 1){
+              dfa <- validationsQ1 %>%  select(position,agreemPerc,agreedAnswer)
+              adminArticles <- adminArticles %>% left_join(dfa,by="position")
+            }
+          }
+        }
+      } #end if user admin
     }#if login true
   })
 
@@ -370,6 +389,11 @@ server <- function(input, output, session) {
                       box(width=6, plotOutput("typeErrorsCountPlot"))
                     ),
                     fluidRow(
+                      box(
+                      strong("Agreed Answers: muestra la respuesta acordada entre los usuarios que han validado los resúmenes 
+                         a la pregunta: \"El resumen generado: ¿trasmite la idea general del artículo?\""),
+                      p("1: SI       2: NO"),
+                      br()),
                       box(width = 12, dataTableOutput("results"))
                     )#fluidRow
             ),#tabItem dashboardEvalSummaries
@@ -399,7 +423,9 @@ server <- function(input, output, session) {
                     )
             ),#tabItem users
             tabItem(tabName = "manageData",
-                    h4("acá botones para bajar y guardar estado sistema en rds y explorar,descargar y eliminar ficheros"),
+                    box(width = 6, title = "Guardar workspace",
+                      actionButton("saveImage", label = "Guardar",class="btn-primary"),
+                    )
             )
           )#tabItems
         } #fin if cuando el usuario es el administrador
@@ -668,15 +694,8 @@ server <- function(input, output, session) {
   })
 
   output$results <-  DT::renderDataTable({
-    print("pasa por render table admin")
-    #no sé si leer, por si se conecta otro usuario......
-    # validationsbyUser <- expertsValidations %>% select(position,error,username_id) %>% arrange(position)
-    # spreadTest <- validationsbyUser %>%  spread(username_id, error)
-    # validationsbyUser <- expertsValidations %>% select(position,error,username_id) %>%  spread(username_id, error)
-    # tableAdmin <- left_join(adminArticles,validationsbyUser,by=c("row_num"="position"))
-    #nrow(tableAdmin) #ok, todas las filas
-    #datatable(tableAdmin[,-c(1)], options = list(autoWidth = TRUE,
-                                                 #searching = FALSE))
+    table <- adminArticles %>% select(-c("id","summary","text","position","url")) 
+    datatable(table,options = list(autoWidth = TRUE,searching = TRUE))
   })
 
   # output$usersValidations <- renderPlot({
@@ -696,6 +715,7 @@ server <- function(input, output, session) {
    datatable(data, options = list(autoWidth = TRUE,searching = FALSE))
   })
 
+  #####
   observeEvent(input$saveNewUser,{
     newUser <- data.frame(matrix(ncol=length(credentials),nrow=1))
     colnames(newUser) <- colnames(credentials)
@@ -721,7 +741,8 @@ server <- function(input, output, session) {
       }
     }
 })
-
+  
+  #####
   observeEvent(input$changeUser,{
     if(input$pswInputChg != ""){
       credentials["passod"][which(credentials$username_id==input$usernameInputChg),] <<- sapply(input$pswInputChg, sodium::password_store)
@@ -736,4 +757,17 @@ server <- function(input, output, session) {
     #updateTabItems(session, inputId = "tabsAdmin", selected = "users") --> no funciona
   })
 
+  
+  #Manage Users
+  ######
+  observeEvent(input$saveImage,{
+    #progress <- shiny::Progress$new()
+    fn <- file.path(tempdir(),paste0("summariesAppWorkspace-",Sys.Date(),".RData"))
+    #progress$set(message = "Guardando workspace",0)
+    shinyalert(title="Se va a guardar el workspace, por favor espere",type="info")
+    save.image(file = fn)
+    drop_upload(fn,inputDir,mode = "overwrite")
+    shinyalert(title="Workspace guardado",type="success")
+    #on.exit(progress$close())
+  })
 }
