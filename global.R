@@ -68,56 +68,6 @@ expertsValidationsColNames <- vector("character",numColEV)
 expertsValidationsColNames <- names
 
 
-# Calculate individual level of agreement for question 1, it will be used to validate only articles-summaries with no agreement
-filesInfo <- drop_dir(outputDir)
-agreem <- 0
-if(dim(filesInfo)[1] >= conf$minNumValid){ 
-  filePaths <- filesInfo$path_display
-  expertsValidations <- lapply(filePaths, drop_read_csv, stringsAsFactors=FALSE)
-  print(expertsValidations)
-  expertsValidations <- do.call(rbind,expertsValidations)
-  validationsQ1 <- expertsValidations %>% 
-    filter(summariesNameFile==conf$fileSummaries && articlesNameFile==conf$fileArticles) %>% 
-    select(position,question1,usernameId) %>%  
-    distinct(position,usernameId, .keep_all = TRUE) %>% 
-    spread(usernameId,question1)
-  numNAQ1 <- apply(X=is.na(validationsQ1), MARGIN=1,FUN=sum)
-  # calcular el número de usuarios que han validado al menos un resumen
-  numUsers <- ncol(validationsQ1)-1 #all columns but position
-  validationsQ1$numResp <- numUsers-numNAQ1
-  df1 <- validationsQ1[-c(1,length(validationsQ1),length(validationsQ1))]
-  comb <- combn(df1,2,simplify = FALSE)
-  if (length(validationsQ1$numResp) > 0 ){  
-    i <- 1
-    for(val in validationsQ1$numResp){
-      if(val >= conf$minNumValid){
-        validationsQ1$possPairs[i] <- factorial(val) / (2 * factorial(val - 2)) 
-      }
-      else{
-        validationsQ1$possPairs[i] <- NA
-      }
-      i <- i+1
-    }#for
-    n <- length(validationsQ1)+1
-    for(val in comb){
-      validationsQ1[n] <- (val[1]==val[2])
-      n <- n+1
-    }
-    validationsQ1$agreemCount <- rowSums(validationsQ1[,(n-length(comb)):(n-1)],na.rm = TRUE)
-    validationsQ1$agreemPerc <- validationsQ1$agreemCount / validationsQ1$possPairs * 100
-    validationsQ1$agreedAnswer <- strtoi(apply(df1,1,function(x) names(which.max(table(x)))))
-    i=1
-    for(val in validationsQ1$agreemPerc){
-      if (is.na(val) || (val < conf$minLevelAgreem))
-        validationsQ1$agreedAnswer[i] <- NA
-      i <- i+1
-    }
-    agreem <- 1
-  }
-} #outter if
-
-  
-
 
 
 # Table used in the administrator dashboard --->   MOVER ESTO A SERVER EN LA PARTE DEL SI EL LOGADO ES EL ADMIN y REVISARLOOOOOOOO POSITIONS
