@@ -12,6 +12,8 @@ library(krippendorffsalpha)
 library(RColorBrewer)
 library(ggplot2)
 #library(rdrop2)
+#library(waiter)
+library(shinycssloaders)
 
 # Main login screen
 #####
@@ -175,7 +177,7 @@ server <- function(input, output, session) {
           menuItem('Configurar "Validar Resúmenes"', tabName = "manageEvalSummaries", icon = icon("fal fa-cog")),
           menuItem('Dashboard "Validar Resúmenes"', tabName = "dashboadEvalSummaries", icon = icon("tachometer-alt",lib = "font-awesome")),
           menuItem('Gestionar Usuarios', tabName = "users", icon = icon("fal fa-user")),
-          menuItem('Gestionar datos', tabName = "manageData", icon = icon("fal fa-database"))
+          menuItem('Guardar workspace', tabName = "manageData", icon = icon("fal fa-database"))
         )
       }
     }
@@ -423,8 +425,39 @@ server <- function(input, output, session) {
                     )
             ),#tabItem users
             tabItem(tabName = "manageData",
-                    box(width = 6, title = "Guardar workspace",
-                      actionButton("saveImage", label = "Guardar",class="btn-primary"),
+                    box(width = 6, title = "Guardar workspace",solidHeader = TRUE,status = "primary",
+                      #actionButton("saveImage", label = "Guardar")
+                      actionButton("saveImage", span("Guardar", id="UpdateAnimate", class="")),
+                      tags$head(tags$style(type="text/css", '
+            .loading {
+                display: inline-block;
+                overflow: hidden;
+                height: 1.3em;
+                margin-top: -0.3em;
+                line-height: 1.5em;
+                vertical-align: text-bottom;
+                box-sizing: border-box;
+            }
+            .loading.dots::after {
+                text-rendering: geometricPrecision;
+                content: "⠋\\A⠙\\A⠹\\A⠸\\A⠼\\A⠴\\A⠦\\A⠧\\A⠇\\A⠏";
+                animation: spin10 1s steps(10) infinite;
+                animation-duration: 1s;
+                animation-timing-function: steps(10);
+                animation-delay: 0s;
+                animation-iteration-count: infinite;
+                animation-direction: normal;
+                animation-fill-mode: none;
+                animation-play-state: running;
+                animation-name: spin10;
+            }
+            .loading::after {
+                display: inline-table;
+                white-space: pre;
+                text-align: left;
+            }
+            @keyframes spin10 { to { transform: translateY(-15.0em); } }
+            '))
                     )
             )
           )#tabItems
@@ -761,13 +794,13 @@ server <- function(input, output, session) {
   #Manage Users
   ######
   observeEvent(input$saveImage,{
-    #progress <- shiny::Progress$new()
+    shinyjs::addClass(id = "UpdateAnimate", class = "loading dots")
+    shinyjs::disable("saveImage")
     fn <- file.path(tempdir(),paste0("summariesAppWorkspace-",Sys.Date(),".RData"))
-    #progress$set(message = "Guardando workspace",0)
-    shinyalert(title="Se va a guardar el workspace, por favor espere",type="info")
     save.image(file = fn)
     drop_upload(fn,inputDir,mode = "overwrite")
-    shinyalert(title="Workspace guardado",type="success")
-    #on.exit(progress$close())
+    shinyjs::enable("saveImage")
+    shinyjs::removeClass(id = "UpdateAnimate", class = "loading dots")
   })
+  
 }
