@@ -13,6 +13,16 @@ library(RColorBrewer)
 library(ggplot2)
 #library(rdrop2)
 
+
+calcPairs <- function(x) {
+  a <- factorial(x) / (2 * factorial(x - 2))
+  if(is.nan(a))
+    0
+  else
+    a
+}
+
+
 # Main login screen
 #####
 loginpage <- div(id = "loginpage", style = "width: 500px; max-width: 100%; margin: 0 auto; padding: 20px;",
@@ -49,29 +59,23 @@ server <- function(input, output, session) {
   
   # Calculate individual level of agreement for question 1, it will be used to validate only articles-summaries with no agreement
   #####
-
-  #AGREEM <- reactiveValues(table = data.frame(matrix(ncol=0,nrow=0))) #AGREEM$table
-  #reader <- reactiveFileReader()
+  AGREEM <- reactiveValues(n = 0)
+  VALIDATIONS <- reactiveValues(table= data.frame(matrix(ncol=0,nrow=0)))
   
-  #AGREEM$table <- observe({
-    filesInfo <- drop_dir(outputDir)
-    if(dim(filesInfo)[1] >= conf$minNumValid){ 
-      filePaths <- filesInfo$path_display
-      expertsValidations <- lapply(filePaths, drop_read_csv, stringsAsFactors=FALSE)
-      expertsValidations <- do.call(rbind,expertsValidations)
+  observe({
+    if(dim(expertsValidations)[1] > 0){
       expertsValidations$questions <- with(expertsValidations,question1*100+question2*10+question3)
-      validations <- expertsValidations %>% 
-        filter(summariesNameFile==conf$fileSummaries && articlesNameFile==conf$fileArticles) %>% 
-        select(position,questions,usernameId) %>%  
-        distinct(position,usernameId, .keep_all = TRUE) %>% 
+      validations <- expertsValidations %>%
+        filter(summariesNameFile==conf$fileSummaries && articlesNameFile==conf$fileArticles) %>%
+        select(position,questions,usernameId) %>%
+        distinct(position,usernameId, .keep_all = TRUE) %>%
         spread(usernameId,questions)
       numNA <- apply(X=is.na(validations), MARGIN=1,FUN=sum)
       numUsers <- ncol(validations)-1
       validations$numResp <- numUsers-numNA
-      #df <- validations[-c(1,length(validations))]
-      df <- validations[2:(numUsers+1)] 
+      df <- validations[2:(numUsers+1)]
       comb <- combn(df,2,simplify = FALSE)
-      if (length(validations$numResp) > 0 ){  
+      if (length(validations$numResp) > 0 ){
         validations$possPairs <- sapply(validations$numResp,calcPairs)
         n <- length(validations)+1
         for(val in comb){
@@ -80,9 +84,9 @@ server <- function(input, output, session) {
         }
         validations$agreemCount <- rowSums(validations[,(n-length(comb)):(n-1)],na.rm = TRUE)
         validations$agreemPerc <- with(validations,
-                                      ifelse(validations$possPairs>=conf$minNumValid,
-                                             round(validations$agreemCount / validations$possPairs * 100,2),
-                                             0))
+                                       ifelse(validations$possPairs>=conf$minNumValid,
+                                              round(validations$agreemCount / validations$possPairs * 100,2),
+                                              0))
         validations$agreedAnswer <- strtoi(apply(df,1,function(x) names(which.max(table(x)))))
         i=1
         for(val in validations$agreemPerc){
@@ -91,12 +95,12 @@ server <- function(input, output, session) {
           i <- i+1
         }
         if(sum(validations$agreedAnswer)>0){
-          agreem <- 1
+          AGREEM$n <- 1
         }
       }
+      VALIDATIONS$table <- validations
     } #outter if
-  
- # }) 
+})
   
   #LOGIN: SHOW APPROPIATE INTERFACE
   ######
@@ -195,7 +199,7 @@ server <- function(input, output, session) {
   # Reactive Value to store the user's previous validations stored in the file
   df <- data.frame(matrix(ncol=numColEV,nrow=0))
   colnames(df) <- expertsValidationsColNames
-  EXPERTS_VALIDATIONS <- reactiveValues(df = df) #EXPERTS_VALIDATIONS$df
+  EXPERT_VALIDATION <- reactiveValues(df = df) #EXPERT_VALIDATION$df
 
   # Reactive Value to store the position of all validated titles perform by the user (previous and new)
   positions <- data.frame(matrix(ncol=1,nrow=0))
@@ -218,27 +222,27 @@ server <- function(input, output, session) {
   observeEvent(input$login,{
     if (USER$login == TRUE) {
       if(typeUser() == "expert"){
-        FILENAMEEV$name <- paste0("validations-",USERNAME$name,".csv")
-        x <- drop_search(FILENAMEEV$name)
-        if(x$start == 0){
-          msg <- paste0("El fichero ",FILENAMEEV$name, " con las validaciones de los usuarios no existe y se va a crear uno vacío.")
-          message(msg)
-          expertValid <- data.frame(matrix(ncol=numColEV,nrow=0))
-          colnames(expertValid) <- expertsValidationsColNames
-          filePath <- file.path(tempdir(),FILENAMEEV$name)
-          write.table(expertValid,file=filePath,sep=',',row.names = FALSE)
-          drop_upload(filePath,outputDir)
-          message(paste0("Creado fichero",FILENAMEEV$name))
-        }
-        EXPERTS_VALIDATIONS$df <- loadCSV(outputDir,FILENAMEEV$name)
+        # FILENAMEEV$name <- paste0("validations-",USERNAME$name,".csv")
+        # x <- drop_search(FILENAMEEV$name)
+        # if(x$start == 0){
+        #   msg <- paste0("El fichero ",FILENAMEEV$name, " con las validaciones de los usuarios no existe y se va a crear uno vacío.")
+        #   message(msg)
+        #   expertValid <- data.frame(matrix(ncol=numColEV,nrow=0))
+        #   colnames(expertValid) <- expertsValidationsColNames
+        #   filePath <- file.path(tempdir(),FILENAMEEV$name)
+        #   write.table(expertValid,file=filePath,sep=',',row.names = FALSE)
+        #   drop_upload(filePath,outputDir)
+        #   message(paste0("Creado fichero",FILENAMEEV$name))
+        # }
+        #EXPERT_VALIDATION$df <- loadCSV(outputDir,FILENAMEEV$name)
         #filter positions of validated articles by logged user
-        validatedTitlesPos <- EXPERTS_VALIDATIONS$df %>% 
+        validatedTitlesPos <- EXPERT_VALIDATION$df %>% 
           filter(summariesNameFile==conf$fileSummaries && articlesNameFile==conf$fileArticles) %>%
           select(position) #filter(usernameId == input$userName) %>% select(position)
         VALIDATIONS$positions <- as.data.frame(validatedTitlesPos)
         # If there's agreement in certain summaries-articles, there's no need of validating them any more
-        if(agreem==1){
-          posDiscard <- validations %>% filter(agreemPerc > conf$minLevelAgreem) %>%  select(position)
+        if(AGREEM$n==1){
+          posDiscard <- VALIDATIONS$table %>% filter(agreemPerc > conf$minLevelAgreem) %>%  select(position)
           #posDiscard <- AGREEM$table() %>% filter(agreemPerc > conf$minLevelAgreem) %>%  select(position)
           print(posDiscard$position)
           ARTICLES$df <- subset(articles,!(position %in% posDiscard$position))
@@ -264,7 +268,7 @@ server <- function(input, output, session) {
             adminArticles <- cbind(articles,summaries$summary)
             names(adminArticles)[length(adminArticles)] <- "generatedSummary" 
             #agregar nivel de cuerdo
-            if(agreem == 1){
+            if(AGREEM$n == 1){
               dfa <- validations %>%  select(position,agreemPerc,agreedAnswer)
               #dfa <- AGREEM$table() %>%  select(position,agreemPerc,agreedAnswer)
               #adminArticles <- adminArticles %>% left_join(dfa,by="position")
@@ -564,7 +568,6 @@ server <- function(input, output, session) {
     validation$articleTitle <- input$selectTitle
     print(validation)
 
-    #tryCatch
     #write.table(validation,file="data/expertsValidations.csv",append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
     filePath <- file.path(tempdir(), FILENAMEEV$name) #"validations.csv")
     write.table(validation,file=filePath,append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)

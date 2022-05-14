@@ -67,14 +67,11 @@ numColEV <- length(names)
 expertsValidationsColNames <- vector("character",numColEV)
 expertsValidationsColNames <- names
 
-agreem <- 0
-
-calcPairs <- function(x) {
-  a <- factorial(x) / (2 * factorial(x - 2))
-  if(is.nan(a))
-     0
-  else
-     a
+# Load experts validations (each file with anwers)
+filesInfo <- drop_dir(outputDir)
+if(dim(filesInfo)[1] >= 1){ 
+  filePaths <- filesInfo$path_display
+  expertsValidations <- lapply(filePaths, drop_read_csv, stringsAsFactors=FALSE)
+  expertsValidations <- do.call(rbind,expertsValidations)
 }
-
-
+  
