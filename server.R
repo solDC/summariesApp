@@ -57,18 +57,17 @@ loginpage <- div(id = "loginpage", style = "width: 500px; max-width: 100%; margi
 
 server <- function(input, output, session) {
   
-  # Calculate individual level of agreement for question 1, it will be used to validate only articles-summaries with no agreement
+  # Calculate agreement per summary, it will be used to validate only articles-summaries with no agreement
   #####
   AGREEM <- reactiveValues(n = 0)
-  VALIDATIONS <- reactiveValues(table= data.frame(matrix(ncol=0,nrow=0)))
-  
+  AGREEMENTS <- reactiveValues(table= data.frame(matrix(ncol=0,nrow=0)))
+
   observe({
-    if(dim(expertsValidations)[1] > 0){
+    if(dim(expertsValidations)[1] > conf$minNumValid){
       expertsValidations$questions <- with(expertsValidations,question1*100+question2*10+question3)
       validations <- expertsValidations %>%
-        filter(summariesNameFile==conf$fileSummaries && articlesNameFile==conf$fileArticles) %>%
         select(position,questions,usernameId) %>%
-        distinct(position,usernameId, .keep_all = TRUE) %>%
+        distinct(position,usernameId, .keep_all = TRUE) %>% # before having blocked save validation button
         spread(usernameId,questions)
       numNA <- apply(X=is.na(validations), MARGIN=1,FUN=sum)
       numUsers <- ncol(validations)-1
@@ -98,7 +97,7 @@ server <- function(input, output, session) {
           AGREEM$n <- 1
         }
       }
-      VALIDATIONS$table <- validations
+      AGREEMENTS$table<- validations
     } #outter if
 })
   
@@ -222,28 +221,19 @@ server <- function(input, output, session) {
   observeEvent(input$login,{
     if (USER$login == TRUE) {
       if(typeUser() == "expert"){
-        # FILENAMEEV$name <- paste0("validations-",USERNAME$name,".csv")
-        # x <- drop_search(FILENAMEEV$name)
-        # if(x$start == 0){
-        #   msg <- paste0("El fichero ",FILENAMEEV$name, " con las validaciones de los usuarios no existe y se va a crear uno vacío.")
-        #   message(msg)
-        #   expertValid <- data.frame(matrix(ncol=numColEV,nrow=0))
-        #   colnames(expertValid) <- expertsValidationsColNames
-        #   filePath <- file.path(tempdir(),FILENAMEEV$name)
-        #   write.table(expertValid,file=filePath,sep=',',row.names = FALSE)
-        #   drop_upload(filePath,outputDir)
-        #   message(paste0("Creado fichero",FILENAMEEV$name))
-        # }
+
         #EXPERT_VALIDATION$df <- loadCSV(outputDir,FILENAMEEV$name)
+       
         #filter positions of validated articles by logged user
-        validatedTitlesPos <- EXPERT_VALIDATION$df %>% 
-          filter(summariesNameFile==conf$fileSummaries && articlesNameFile==conf$fileArticles) %>%
-          select(position) #filter(usernameId == input$userName) %>% select(position)
+        
+        print(expertsValidations %>% 
+                filter(usernameId == USERNAME$name))
+        validatedTitlesPos <- expertsValidations %>% filter(usernameId == USERNAME$name) %>% select(position) 
         VALIDATIONS$positions <- as.data.frame(validatedTitlesPos)
+        print(validatedTitlesPos)
         # If there's agreement in certain summaries-articles, there's no need of validating them any more
         if(AGREEM$n==1){
-          posDiscard <- VALIDATIONS$table %>% filter(agreemPerc > conf$minLevelAgreem) %>%  select(position)
-          #posDiscard <- AGREEM$table() %>% filter(agreemPerc > conf$minLevelAgreem) %>%  select(position)
+          posDiscard <- AGREEMENTS$table%>% filter(agreemPerc > conf$minLevelAgreem) %>%  select(position)
           print(posDiscard$position)
           ARTICLES$df <- subset(articles,!(position %in% posDiscard$position))
         }
@@ -269,9 +259,7 @@ server <- function(input, output, session) {
             names(adminArticles)[length(adminArticles)] <- "generatedSummary" 
             #agregar nivel de cuerdo
             if(AGREEM$n == 1){
-              dfa <- validations %>%  select(position,agreemPerc,agreedAnswer)
-              #dfa <- AGREEM$table() %>%  select(position,agreemPerc,agreedAnswer)
-              #adminArticles <- adminArticles %>% left_join(dfa,by="position")
+              dfa <- AGREEMENTS$table %>%  select(position,agreemPerc,agreedAnswer)
               ADMIN_ARTICLES$df <- adminArticles %>% left_join(dfa,by="position")
             }
           }
@@ -333,11 +321,42 @@ server <- function(input, output, session) {
                                      choices = list("Verdadero" = 1, "Falso" = 2),
                                      selected = 2) #character(0))
                       ), #conditional panel
-                      actionButton('validateButton',"Validar Resumen",class="btn-primary"),
-                      br())
+                      actionButton('validateButton',span("Validar Resumen",id="UpdateAnimate",class="")),
+                      ######
+                      tags$head(tags$style(type="text/css", '
+            .loading {
+                display: inline-block;
+                overflow: hidden;
+                height: 1.3em;
+                margin-top: -0.3em;
+                line-height: 1.5em;
+                vertical-align: text-bottom;
+                box-sizing: border-box;
+            }
+            .loading.dots::after {
+                text-rendering: geometricPrecision;
+                content: "⠋\\A⠙\\A⠹\\A⠸\\A⠼\\A⠴\\A⠦\\A⠧\\A⠇\\A⠏";
+                animation: spin10 1s steps(10) infinite;
+                animation-duration: 1s;
+                animation-timing-function: steps(10);
+                animation-delay: 0s;
+                animation-iteration-count: infinite;
+                animation-direction: normal;
+                animation-fill-mode: none;
+                animation-play-state: running;
+                animation-name: spin10;
+            }
+            .loading::after {
+                display: inline-table;
+                white-space: pre;
+                text-align: left;
+            }
+            @keyframes spin10 { to { transform: translateY(-15.0em); } }
+            '))
+                    )#box
                   ) #última fluidRow
-           ) #tabItem validate
-        )# tabItems
+                  ) #tabItem validate
+           ) # tabItems
         }#fin if si el usuario es el expert
         else{
           #Usuario admin
@@ -439,8 +458,7 @@ server <- function(input, output, session) {
             tabItem(tabName = "manageData",
                     box(width = 6, title = "Guardar workspace",solidHeader = TRUE,status = "primary",
                       #actionButton("saveImage", label = "Guardar")
-                      actionButton("saveImage", span("Guardar", id="UpdateAnimate", class="")),
-                      #####
+                      actionButton("saveImage", span("Guardar", id="UpdateAnimate1", class="")),
                       tags$head(tags$style(type="text/css", '
             .loading {
                 display: inline-block;
@@ -547,10 +565,13 @@ server <- function(input, output, session) {
   ######
   # SAVE VALIDATION AND UPDATE TITLES LIST
   observeEvent(input$validateButton,{
-    #create structure to save validation
+    shinyjs::addClass(id = "UpdateAnimate", class = "loading dots")
+    shinyjs::disable("validateButton")
+    
+    # Create structure to save validation
     validation <- data.frame(matrix(ncol=numColEV,nrow=1))
     colnames(validation) <- expertsValidationsColNames
-    #save values
+    # Save values
     validation$usernameId <- USERNAME$name #input$userName
     validation$position <- articles[which(articles$title == input$selectTitle),6]
     validation$question1 <- input$question1
@@ -567,23 +588,50 @@ server <- function(input, output, session) {
     validation$articlesNameFile <- conf$fileArticles
     validation$articleTitle <- input$selectTitle
     print(validation)
-
-    #write.table(validation,file="data/expertsValidations.csv",append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
+    
+    # Add validation to expertsValidations global dataframe
+    expertsValidations <- rbind(expertsValidations,validation)
+    print(expertsValidations %>% filter(usernameId == "user1"))
+    
+    # Create file if it doesn't exist
+    FILENAMEEV$name <- paste0("validations-",USERNAME$name,".csv")
+    x <- drop_search(FILENAMEEV$name)
+    if(x$start == 0){
+      msg <- paste0("El fichero ",FILENAMEEV$name, " con las validaciones de los usuarios no existe y se va a crear uno vacío.")
+      message(msg)
+      expertValid <- data.frame(matrix(ncol=numColEV,nrow=0))
+      colnames(expertValid) <- expertsValidationsColNames
+      filePath <- file.path(tempdir(),FILENAMEEV$name)
+      write.table(expertValid,file=filePath,sep=',',row.names = FALSE)
+      drop_upload(filePath,outputDir)
+      message(paste0("Creado fichero",FILENAMEEV$name))
+    }
+    
+    # Write.table(validation,file="data/expertsValidations.csv",append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
     filePath <- file.path(tempdir(), FILENAMEEV$name) #"validations.csv")
     write.table(validation,file=filePath,append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
     drop_upload(filePath,outputDir) #"summariesApp/responses"
 
     shinyalert(title="Validation stored",type="success")
 
-    #update select input title list pending validation by user ---> OJO FALTA AGREGAR EL NIVEL DE ACUERDO ENTRE TODOS
+    # Discard new agreements and update select input title list 
+    if(AGREEM$n==1){
+      posDiscard <- AGREEMENTS$table%>% filter(agreemPerc > conf$minLevelAgreem) %>%  select(position)
+      print(posDiscard)
+      ARTICLES$df <- subset(articles,!(position %in% posDiscard$position))
+    } 
     position <- validation$position
     VALIDATIONS$positions <- append(VALIDATIONS$positions$position,position)
     VALIDATIONS$positions <- as.data.frame(VALIDATIONS$positions)
     colnames(VALIDATIONS$positions) <- c("position")
     TITLES$userTitles <- sample(ARTICLES$df[!(row.names(ARTICLES$df) %in% VALIDATIONS$positions$position),3])
     updateSelectInput(session,"selectTitle",choices=TITLES$userTitles)
+    
+    shinyjs::enable("validateButton")
+    shinyjs::removeClass(id = "UpdateAnimate", class = "loading dots")
   })
 
+  ######
   #Admin
   ######
 
@@ -752,8 +800,9 @@ server <- function(input, output, session) {
   #   p + scale_fill_discrete(name= "Error", labels=names(typeErrors))
   # })
 
-  ######
   #Manage Users
+  
+  ######
   REG_USERS <- reactiveValues(users = credentials) #REG_USERS$users
 
   output$tableUsers <-  DT::renderDataTable({
@@ -807,13 +856,13 @@ server <- function(input, output, session) {
   #Save workspace
   ######
   observeEvent(input$saveImage,{
-    shinyjs::addClass(id = "UpdateAnimate", class = "loading dots")
+    shinyjs::addClass(id = "UpdateAnimate1", class = "loading dots")
     shinyjs::disable("saveImage")
     fn <- file.path(tempdir(),paste0("summariesAppWorkspace-",Sys.Date(),".RData"))
     save.image(file = fn)
     drop_upload(fn,inputDir,mode = "overwrite")
     shinyjs::enable("saveImage")
-    shinyjs::removeClass(id = "UpdateAnimate", class = "loading dots")
+    shinyjs::removeClass(id = "UpdateAnimate1", class = "loading dots")
   })
   
 }

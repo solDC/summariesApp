@@ -73,5 +73,7 @@ if(dim(filesInfo)[1] >= 1){
   filePaths <- filesInfo$path_display
   expertsValidations <- lapply(filePaths, drop_read_csv, stringsAsFactors=FALSE)
   expertsValidations <- do.call(rbind,expertsValidations)
+  expertsValidations <-  filter(expertsValidations,summariesNameFile == conf$fileSummaries)
+  expertsValidations <- filter(expertsValidations,articlesNameFile == conf$fileArticles)
 }
   
