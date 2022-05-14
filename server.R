@@ -12,8 +12,6 @@ library(krippendorffsalpha)
 library(RColorBrewer)
 library(ggplot2)
 #library(rdrop2)
-#library(waiter)
-library(shinycssloaders)
 
 # Main login screen
 #####
@@ -46,56 +44,59 @@ loginpage <- div(id = "loginpage", style = "width: 500px; max-width: 100%; margi
 )
 
 #####
+
 server <- function(input, output, session) {
   
   # Calculate individual level of agreement for question 1, it will be used to validate only articles-summaries with no agreement
   #####
-  filesInfo <- drop_dir(outputDir)
-  agreem <- 0
-  if(dim(filesInfo)[1] >= conf$minNumValid){ 
-    filePaths <- filesInfo$path_display
-    expertsValidations <- lapply(filePaths, drop_read_csv, stringsAsFactors=FALSE)
-    expertsValidations <- do.call(rbind,expertsValidations)
-    validationsQ1 <- expertsValidations %>% 
-      filter(summariesNameFile==conf$fileSummaries && articlesNameFile==conf$fileArticles) %>% 
-      select(position,question1,usernameId) %>%  
-      distinct(position,usernameId, .keep_all = TRUE) %>% 
-      spread(usernameId,question1)
-    numNAQ1 <- apply(X=is.na(validationsQ1), MARGIN=1,FUN=sum)
-    numUsers <- ncol(validationsQ1)-1 #all columns but position
-    validationsQ1$numResp <- numUsers-numNAQ1
-    df1 <- validationsQ1[-c(1,length(validationsQ1),length(validationsQ1))]
-    comb <- combn(df1,2,simplify = FALSE)
-    if (length(validationsQ1$numResp) > 0 ){  
-      i <- 1
-      for(val in validationsQ1$numResp){
-        if(val >= conf$minNumValid){
-          validationsQ1$possPairs[i] <- factorial(val) / (2 * factorial(val - 2)) 
-        }
-        else{
-          validationsQ1$possPairs[i] <- NA
-        }
-        i <- i+1
-      }#for
-      n <- length(validationsQ1)+1
-      for(val in comb){
-        validationsQ1[n] <- (val[1]==val[2])
-        n <- n+1
-      }
-      validationsQ1$agreemCount <- rowSums(validationsQ1[,(n-length(comb)):(n-1)],na.rm = TRUE)
-      validationsQ1$agreemPerc <- validationsQ1$agreemCount / validationsQ1$possPairs * 100
-      validationsQ1$agreedAnswer <- strtoi(apply(df1,1,function(x) names(which.max(table(x)))))
-      i=1
-      for(val in validationsQ1$agreemPerc){
-        if (is.na(val) || (val < conf$minLevelAgreem))
-          validationsQ1$agreedAnswer[i] <- NA
-        i <- i+1
-      }
-      agreem <- 1
-    }
-  } #outter if
+
+  #AGREEM <- reactiveValues(table = data.frame(matrix(ncol=0,nrow=0))) #AGREEM$table
+  #reader <- reactiveFileReader()
   
+  #AGREEM$table <- observe({
+    filesInfo <- drop_dir(outputDir)
+    if(dim(filesInfo)[1] >= conf$minNumValid){ 
+      filePaths <- filesInfo$path_display
+      expertsValidations <- lapply(filePaths, drop_read_csv, stringsAsFactors=FALSE)
+      expertsValidations <- do.call(rbind,expertsValidations)
+      expertsValidations$questions <- with(expertsValidations,question1*100+question2*10+question3)
+      validations <- expertsValidations %>% 
+        filter(summariesNameFile==conf$fileSummaries && articlesNameFile==conf$fileArticles) %>% 
+        select(position,questions,usernameId) %>%  
+        distinct(position,usernameId, .keep_all = TRUE) %>% 
+        spread(usernameId,questions)
+      numNA <- apply(X=is.na(validations), MARGIN=1,FUN=sum)
+      numUsers <- ncol(validations)-1
+      validations$numResp <- numUsers-numNA
+      #df <- validations[-c(1,length(validations))]
+      df <- validations[2:(numUsers+1)] 
+      comb <- combn(df,2,simplify = FALSE)
+      if (length(validations$numResp) > 0 ){  
+        validations$possPairs <- sapply(validations$numResp,calcPairs)
+        n <- length(validations)+1
+        for(val in comb){
+          validations[n] <- (val[1]==val[2])
+          n <- n+1
+        }
+        validations$agreemCount <- rowSums(validations[,(n-length(comb)):(n-1)],na.rm = TRUE)
+        validations$agreemPerc <- with(validations,
+                                      ifelse(validations$possPairs>=conf$minNumValid,
+                                             round(validations$agreemCount / validations$possPairs * 100,2),
+                                             0))
+        validations$agreedAnswer <- strtoi(apply(df,1,function(x) names(which.max(table(x)))))
+        i=1
+        for(val in validations$agreemPerc){
+          if ((val < conf$minLevelAgreem))
+            validations$agreedAnswer[i] <- 0
+          i <- i+1
+        }
+        if(sum(validations$agreedAnswer)>0){
+          agreem <- 1
+        }
+      }
+    } #outter if
   
+ # }) 
   
   #LOGIN: SHOW APPROPIATE INTERFACE
   ######
@@ -210,6 +211,8 @@ server <- function(input, output, session) {
   # dfA <- data.frame(matrix(ncol=length(articles),nrow=0))
   # colnames(dfA) <-colnames(articles)
   ARTICLES <- reactiveValues(df = articles) #ARTICLES$df
+  
+  ADMIN_ARTICLES <- reactiveValues(df = data.frame(matrix(ncol=0,nrow=0))) #ADMIN_ARTICLES$df
 
   ######
   observeEvent(input$login,{
@@ -229,11 +232,14 @@ server <- function(input, output, session) {
         }
         EXPERTS_VALIDATIONS$df <- loadCSV(outputDir,FILENAMEEV$name)
         #filter positions of validated articles by logged user
-        validatedTitlesPos <- EXPERTS_VALIDATIONS$df %>% select(position) #filter(usernameId == input$userName) %>% select(position)
+        validatedTitlesPos <- EXPERTS_VALIDATIONS$df %>% 
+          filter(summariesNameFile==conf$fileSummaries && articlesNameFile==conf$fileArticles) %>%
+          select(position) #filter(usernameId == input$userName) %>% select(position)
         VALIDATIONS$positions <- as.data.frame(validatedTitlesPos)
         # If there's agreement in certain summaries-articles, there's no need of validating them any more
         if(agreem==1){
-          posDiscard <- validationsQ1 %>% filter(agreemPerc > conf$minLevelAgreem) %>%  select(position)
+          posDiscard <- validations %>% filter(agreemPerc > conf$minLevelAgreem) %>%  select(position)
+          #posDiscard <- AGREEM$table() %>% filter(agreemPerc > conf$minLevelAgreem) %>%  select(position)
           print(posDiscard$position)
           ARTICLES$df <- subset(articles,!(position %in% posDiscard$position))
         }
@@ -259,8 +265,10 @@ server <- function(input, output, session) {
             names(adminArticles)[length(adminArticles)] <- "generatedSummary" 
             #agregar nivel de cuerdo
             if(agreem == 1){
-              dfa <- validationsQ1 %>%  select(position,agreemPerc,agreedAnswer)
-              adminArticles <- adminArticles %>% left_join(dfa,by="position")
+              dfa <- validations %>%  select(position,agreemPerc,agreedAnswer)
+              #dfa <- AGREEM$table() %>%  select(position,agreemPerc,agreedAnswer)
+              #adminArticles <- adminArticles %>% left_join(dfa,by="position")
+              ADMIN_ARTICLES$df <- adminArticles %>% left_join(dfa,by="position")
             }
           }
         }
@@ -428,6 +436,7 @@ server <- function(input, output, session) {
                     box(width = 6, title = "Guardar workspace",solidHeader = TRUE,status = "primary",
                       #actionButton("saveImage", label = "Guardar")
                       actionButton("saveImage", span("Guardar", id="UpdateAnimate", class="")),
+                      #####
                       tags$head(tags$style(type="text/css", '
             .loading {
                 display: inline-block;
@@ -531,7 +540,7 @@ server <- function(input, output, session) {
 
   output$generatedSummary <- renderText(filteredGeneratedSummary())
 
-  #####
+  ######
   # SAVE VALIDATION AND UPDATE TITLES LIST
   observeEvent(input$validateButton,{
     #create structure to save validation
@@ -542,8 +551,8 @@ server <- function(input, output, session) {
     validation$position <- articles[which(articles$title == input$selectTitle),6]
     validation$question1 <- input$question1
     if(input$question1 == 2){
-      validation$question2 <- NA
-      validation$question3 <- NA
+      validation$question2 <- 0
+      validation$question3 <- 0
     }
     else{
       validation$question2 <- input$question2
@@ -727,7 +736,8 @@ server <- function(input, output, session) {
   })
 
   output$results <-  DT::renderDataTable({
-    table <- adminArticles %>% select(-c("id","summary","text","position","url")) 
+    #table <- adminArticles %>% select(-c("id","summary","text","position","url")) 
+    table <- ADMIN_ARTICLES$df %>% select(-c("id","summary","text","position","url")) 
     datatable(table,options = list(autoWidth = TRUE,searching = TRUE))
   })
 
@@ -739,8 +749,8 @@ server <- function(input, output, session) {
   #   p + scale_fill_discrete(name= "Error", labels=names(typeErrors))
   # })
 
-  #Manage Users
   ######
+  #Manage Users
   REG_USERS <- reactiveValues(users = credentials) #REG_USERS$users
 
   output$tableUsers <-  DT::renderDataTable({
@@ -791,7 +801,7 @@ server <- function(input, output, session) {
   })
 
   
-  #Manage Users
+  #Save workspace
   ######
   observeEvent(input$saveImage,{
     shinyjs::addClass(id = "UpdateAnimate", class = "loading dots")

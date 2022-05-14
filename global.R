@@ -9,8 +9,8 @@ library(rdrop2)
 library(shinyalert)
 
 # Done once to create Dropbox authentification tokens
-#token<-drop_auth()
-#saveRDS(token, "droptoken.rds")
+token<-drop_auth()
+saveRDS(token, "droptoken.rds")
 
 #Dropbox auth
 token <- readRDS("droptoken.rds")
@@ -67,13 +67,14 @@ numColEV <- length(names)
 expertsValidationsColNames <- vector("character",numColEV)
 expertsValidationsColNames <- names
 
-# Variable used to check if there are articles-summaries with agreement
-# agreem <- 0
-# Variables used to re-calculate agreement and discard titles to validate if necessary
-validGlobal <- 0
-validIni <- 0
+agreem <- 0
 
+calcPairs <- function(x) {
+  a <- factorial(x) / (2 * factorial(x - 2))
+  if(is.nan(a))
+     0
+  else
+     a
+}
 
-
-# Table used in the administrator dashboard --->   MOVER ESTO A SERVER EN LA PARTE DEL SI EL LOGADO ES EL ADMIN y REVISARLOOOOOOOO POSITIONS
 
