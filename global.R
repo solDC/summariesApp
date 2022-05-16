@@ -12,6 +12,8 @@ token <- readRDS("droptoken.rds")
 outputDir <- "summariesApp/responses/"
 inputDir <- "summariesApp/data/"
 
+set.seed(123)
+
 # Utility function to load csv files from dropbox
 loadCSV <- function(filePath){
   f <- tryCatch({
@@ -29,7 +31,16 @@ loadCSV <- function(filePath){
   })
 }
 
-set.seed(123)
+conf <- loadCSV(paste0(inputDir,"conf.csv"))
+credentials <- loadCSV(paste0(inputDir,"users.csv"))
+
+onStop(function(){
+  filePath <- file.path(tempdir(),"users.csv")
+  write.table(credentials,file=filePath,append = FALSE,sep=',',col.names = TRUE, row.names = FALSE)
+  drop_upload(filePath,inputDir,mode = "overwrite")
+})
+
+
 
 # Main login screen
 #####

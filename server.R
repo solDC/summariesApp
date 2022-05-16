@@ -13,8 +13,7 @@ library(RColorBrewer)
 library(ggplot2)
 library(rdrop2)
 
-conf <- loadCSV(paste0(inputDir,"conf.csv"))
-credentials <- loadCSV(paste0(inputDir,"users.csv"))
+
 
 ########
 # SERVER
@@ -226,9 +225,7 @@ server <- function(input, output, session) {
   
   output$body <- renderUI({
     if (USER$login == TRUE) {
-      #req(conf())
       rv$conf
-      #req(credentials())
       if(typeUser() == "expert"){
         tabItems(
           tabItem(tabName = "information",
@@ -418,21 +415,26 @@ server <- function(input, output, session) {
           ),#tabItem dashboardEvalSummaries
           tabItem(tabName = "users",
                   fluidRow(
-                    box(width = 6, title = "Crear nuevo usuario",solidHeader = TRUE,status = "primary",
+                    box(width = 4, title = "Crear nuevo usuario",solidHeader = TRUE,status = "primary",
                         textInput("usernameInput", label = "Ingrese el nombre de usuario", value = ""),
                         textInput("pswInput", label = "Ingrese la contraseña", value = ""),
                         selectInput("typeUserInput", label = "Seleccione",
                                     choices = credentials$permission),
-                        actionButton("saveNewUser", span("Guardar Nuevo Usuario", id="UpdateAnimateSaveUser", class="")),
-                    # box(width = 6, title = "Modificar usuario",solidHeader = TRUE,status = "primary",
-                    #     selectInput("usernameInputChg", label = "Seleccione",
-                    #                 choices = credentials()$username_id),
-                    #     textInput("pswInputChg", label = "Ingrese la nueva contraseña", value = ""),
-                    #     selectInput("typeUserInputChg", label = "Seleccione",
-                    #                 choices = list("expert", "admin")),
-                    #     actionButton("changeUser", label= "Modificar usuario",class="btn-primary")
-                    # )
-                    )), #box + fluidRow
+                        actionButton("saveNewUser", span("Crear Usuario", id="UpdateAnimateSaveUser", class="btn-primary"))),
+                    box(width = 4, title = "Modificar contraseña usuario",solidHeader = TRUE,status = "primary",
+                        selectInput("usernameInputChgPsw", label = "Seleccione el usuario cuya contraseña quiere modificar",
+                                    choices = credentials$username_id),
+                        textInput("pswInputChg", label = "Ingrese la nueva contraseña", value = "btn-primary"),
+                        actionButton("changePswUser", label= "Modificar",class="")
+                    ), #box
+                    box(width = 4, title = "Modificar tipo de usuario",solidHeader = TRUE,status = "primary",
+                        selectInput("usernameInputChgType", label = "Seleccione el usuario cuyos permisos quiera modificar",
+                                    choices = credentials$username_id),
+                        selectInput("typeUserInputChgType", label = "Seleccione el nuevo tipo de usuario",
+                                    choices = list("expert", "admin")),
+                        actionButton("changeTypeUser", label= "Modificar",class="btn-primary")
+                    ) #box
+                    ), #fluidRow
                   fluidRow(
                     box(width = 12, title = "Listado de usuarios",solidHeader = TRUE,status = "primary",
                         checkboxGroupInput("cgTypeUser", label = "Filtrar por tipo de usuario",
@@ -491,11 +493,7 @@ server <- function(input, output, session) {
     conf$fileArticles
   })
   
-  # updateSelectInput(session, "selectTitle",
-  #                   label = "Seleccione el artículo a validar",
-  #                   choices = articlesValidate()$title)
-  
-  
+ 
   #####
   observeEvent(input$saveConfig,{
     message("entra en SaveConfig")
@@ -565,8 +563,8 @@ server <- function(input, output, session) {
   
   #####
   observeEvent(input$saveNewUser,{
-    shinyjs::addClass(id = "UpdateAnimateSaveUser", class = "loading dots")
-    shinyjs::disable("saveUser")
+    # shinyjs::addClass(id = "UpdateAnimateSaveUser", class = "loading dots")
+    # shinyjs::disable("saveUser")
     newUser <- data.frame(matrix(ncol=length(credentials),nrow=1))
     colnames(newUser) <- colnames(credentials)
     newUser$username_id = input$usernameInput
@@ -577,43 +575,56 @@ server <- function(input, output, session) {
     }
     else{
       if(input$usernameInput != "" && input$pswInput != ""){
-        filePath <- file.path(tempdir(),"users.csv")
-        write.table(newUser,file=filePath,append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
-        drop_upload(filePath,inputDir)
+        # filePath <- file.path(tempdir(),"users.csv")
+        # write.table(newUser,file=filePath,append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
+        # drop_upload(filePath,inputDir)
         credentials <<- rbind(credentials,newUser)
         rv$cred <<- rv$cred + 1
         shinyalert(title="Nuevo usuario creado",type="success")
-        updateTabItems(session, inputId = "tabsAdmin", selected = "users") #--> no funciona
+        #updateTabItems(session, inputId = "tabsAdmin", selected = "users") 
       }
       else
       {
         shinyalert(title="Faltan datos, no se puede crear el usuario",type="error")
       }
     }
-    shinyjs::enable("saveUser")
-    shinyjs::removeClass(id = "UpdateAnimateSaveUser", class = "loading dots")
+    # shinyjs::enable("saveUser")
+    # shinyjs::removeClass(id = "UpdateAnimateSaveUser", class = "loading dots")
   })
   
   
+  observeEvent(input$changeTypeUser,{
+    currentType <- credentials["permission"][which(credentials$username_id==input$usernameInputChgType),] 
+    newType <- input$typeUserInputChgType
+    if( newType != currentType){
+      print("entro a if cambio tipo usuario")
+      credentials["permission"][which(credentials$username_id==input$usernameInputChgType),] <<- newType
+      rv$cred <<- rv$cred + 1
+      # filePath <- file.path(tempdir(),"users.csv")
+      # write.table(credentials,file=filePath,append = FALSE,sep=',',col.names = TRUE, row.names = FALSE)
+      # drop_upload(filePath,inputDir,mode = "overwrite")
+      shinyalert(title="Cambios sobre el usuario guardados",type="success")
+    }
+    else{
+      shinyalert(title="Introduzca un tipo de usuario diferente para continuar",type="error")
+    }
+  })
   
-  # #####
-  # credentials() <<- reactiveEvent(input$changeUser,{
-  #   if(input$pswInputChg != ""){
-  #     newPass <- sapply(input$pswInputChg, sodium::password_store)
-  #     #credentials()["passod"][which(credentials()$username_id==input$usernameInputChg),] <<- sapply(input$pswInputChg, sodium::password_store)
-  #     print("entro a if psw")
-  #   }
-  #   newPermission <- input$typeUserInputChg
-  #   #credentials()["permission"][which(credentials()$username_id==input$usernameInputChg),] <<- input$typeUserInputChg
-  #   filePath <- file.path(tempdir(),"users.csv")
-  #   
-  #   write.table(credentials(),file=filePath,append = FALSE,sep=',',col.names = TRUE, row.names = FALSE)
-  #   drop_upload(filePath,inputDir,mode = "overwrite")
-  #   shinyalert(title="Cambios sobre el usuario guardados",type="success")
-  #   updateTabItems(session, inputId = "tabsAdmin", selected = "users") #--> no funciona
-  # })
-  # 
-  
+  observeEvent(input$changePswUser,{
+    if(input$pswInputChg != ""){
+      print("entro a if psw")
+      credentials["passod"][which(credentials$username_id==input$usernameInputChgPsw),] <<- sapply(input$pswInputChg, sodium::password_store)
+      rv$cred <<- rv$cred + 1
+      # filePath <- file.path(tempdir(),"users.csv")
+      # write.table(credentials,file=filePath,append = FALSE,sep=',',col.names = TRUE, row.names = FALSE)
+      # drop_upload(filePath,inputDir,mode = "overwrite")
+      shinyalert(title="Cambios sobre el usuario guardados",type="success")
+    }
+    else{
+      shinyalert(title="Introduzca una contraseña para continuar",type="error")
+    }
+  })
+
   #Save workspace
   ######
   observeEvent(input$saveImage,{
@@ -622,6 +633,7 @@ server <- function(input, output, session) {
     fn <- file.path(tempdir(),paste0("summariesAppWorkspace-",Sys.Date(),".RData"))
     save.image(file = fn)
     drop_upload(fn,inputDir,mode = "overwrite")
+    shinyalert(title="Imagen del workspace almacenada",type="success")
     shinyjs::enable("saveImage")
     shinyjs::removeClass(id = "UpdateAnimateSaveImage", class = "loading dots")
   })
