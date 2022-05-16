@@ -13,58 +13,62 @@ library(RColorBrewer)
 library(ggplot2)
 library(rdrop2)
 
+conf <- loadCSV(paste0(inputDir,"conf.csv"))
+credentials <- loadCSV(paste0(inputDir,"users.csv"))
 
 ########
 # SERVER
 ########
 server <- function(input, output, session) {
-  
-  # Cross-session reactive file reader session=NULL. In this example, all sessions share
-  # the same reader, so it only gets executed once no matter how many user sessions are connected
-  conf <- reactiveFileReader(1000,NULL,paste0(inputDir,"conf.csv"),loadCSV)
-  credentials <- reactiveFileReader(1000,NULL,paste0(inputDir,"users.csv"),loadCSV)
 
-  #rv <<- reactiveValues(conf=0,cred=0)
-  
+  rv <<- reactiveValues(conf=0,cred=0)
   
   articles <<- reactive({
-    req(conf())
-    articles <- loadCSV(paste0(inputDir,conf()$fileArticles))
+    rv$conf
+    
+    articles <- loadCSV(paste0(inputDir,conf$fileArticles))
     message("Cargando artículos")
     articles
   })
 
   summaries <<- reactive({
-    req(conf())
+    rv$conf
     req(articles())
-    sum <- loadCSV(paste0(inputDir,conf()$fileSummaries))
+    
+    sum <- loadCSV(paste0(inputDir,conf$fileSummaries))
     message("Cargando resúmenes")
     sum
   })
   
   numArticles <<- reactive({
     req(articles())
+    rv$conf
     message(" calcula numero de filas articulos")
     nrow(articles())
   })
   
   sampleSize <<- reactive({
     req(numArticles())
-    req(conf())
+    rv$conf
+    
     message(" calcula sample size")
-    round(conf()$sampleSize*numArticles()/100,0)
+    round(conf$sampleSize*numArticles()/100,0)
   })
   
   samplePositions <<- reactive({
     req(numArticles())
     req(sampleSize())
+    rv$conf
+    
     message(" calcula sample positions")
     sort(sample(1:numArticles(),sampleSize(),replace=F))
   })
   
   articlesValidate <<- reactive({
+    rv$conf
     req(samplePositions())
     req(articles())
+    
     message("calcula articulos validar")
     articlesValidate <- articles()[samplePositions(),]
     articlesValidate$position <- samplePositions()
@@ -72,8 +76,10 @@ server <- function(input, output, session) {
   })
 
   summariesValidate <<- reactive({
+    rv$conf
     req(summaries())
     req(samplePositions())
+    
     message("calcula summariesValidate")
     summariesValidate <- as.data.frame(summaries[samplePositions(),])
     summariesValidate$position <- samplePositions()
@@ -88,17 +94,16 @@ server <- function(input, output, session) {
   USER <- reactiveValues(login = login, name = name)
   
   observe({
-    req(credentials())
-    req(conf())
+    rv$cred
     req(articles())
     if (USER$login == FALSE) {
       if (!is.null(input$login)) {
         if (input$login > 0) {
           Username <- isolate(input$userName)
           Password <- isolate(input$passwd)
-          if(!is.null(credentials())){
-            if(length(which(credentials()$username_id==Username))==1) {
-              pasmatch  <- credentials()["passod"][which(credentials()$username_id==Username),]
+          if(!is.null(credentials)){
+            if(length(which(credentials$username_id==Username))==1) {
+              pasmatch  <- credentials["passod"][which(credentials$username_id==Username),]
               pasverify <- password_verify(pasmatch, Password)
               Password <- NULL # to avoid keeping the password available
               if(pasverify) {
@@ -141,9 +146,8 @@ server <- function(input, output, session) {
   # Type of user
   typeUser <- reactive ({
     req(USER$login)
-    req(credentials())
     # No need to check if credential is loaded, can't reach this point if it wasn't loaded.
-    credentials()["permission"][which(credentials()$username_id==USER$name),]
+    credentials["permission"][which(credentials$username_id==USER$name),]
   })
   
   ######
@@ -222,8 +226,9 @@ server <- function(input, output, session) {
   
   output$body <- renderUI({
     if (USER$login == TRUE) {
-      req(conf())
-      req(credentials())
+      #req(conf())
+      rv$conf
+      #req(credentials())
       if(typeUser() == "expert"){
         tabItems(
           tabItem(tabName = "information",
@@ -313,56 +318,6 @@ server <- function(input, output, session) {
         #Usuario admin
         tabItems(
           tabItem(tabName = "manageEvalSummaries", class = "active",
-                  fluidRow(
-                    box(title="Tamaño de la muestra a validar", width = 12, solidHeader = TRUE,status = "primary",
-                        box(width=6,
-                            strong("Número total de artículos-resúmenes: "), verbatimTextOutput("numberRowsArticles"),
-                            strong("Tamaño actual de la muestra (en %):"), verbatimTextOutput("currentSampleSize"),
-                            strong("Tamaño actual de la muestra (nº): "), verbatimTextOutput("numberCurrentSampleRows")),
-                        box(width=6,
-                            numericInput("sample",label='Seleccione el tamaño de la muestra a validar [en %]',
-                                         min=1, max=100, value=conf()$sampleSize),
-                            p("El tamaño de la muestra sería (nº): "), verbatimTextOutput("numberRowsSample")
-                        ))),
-                  fluidRow(
-                    box(title="Número de validaciones y nivel de acuerdo mínimo por resumen", width = 12, solidHeader = TRUE,status = "primary",
-                        box(title="Número mínimo de validaciones por resumen", width = 6,
-                            strong("Mínimo número actual de validaciones por resumen: "), verbatimTextOutput("minValid"),
-                            sliderInput("minValid",label='Seleccione el número mínimo de validaciones por resumen:',
-                                        min=3, max=10, value = conf()$minNumValid)),
-                        box(title="Mínimo % de nivel de acuerdo por resumen", width = 6,
-                            strong("Mínimo % actual de acuerdo por resumen: "), verbatimTextOutput("minAgreem"),
-                            sliderInput("minAgreem",label='Seleccione el tamaño de la muestra a validar [en %]',
-                                        min=0, max=100, value = conf()$minLevelAgreem)
-                        ))),
-                  fluidRow(
-                    box(width = 12, title = "Gestión de ficheros",solidHeader = TRUE,status = "primary",
-                        box(title="Fichero de artículos a validar", width = 6,
-                            strong("Nombre del fichero actual:"),verbatimTextOutput("currentArticlesFile"),
-                            radioButtons("changeArticlesFile",label="Desea cambiar el fichero de artículos a validar ",
-                                         choices=list("Yes" = 1, "No" = 2),
-                                         selected = 2),
-                            conditionalPanel(
-                              condition = "input.changeArticlesFile == 1",
-                              fileInput("newArticlesFile",label="Subir el nuevo fichero con los resúmenes a validar (solo csv)",
-                                        multiple = FALSE, accept = ".csv")
-                            )
-                        ),
-                        box(title="Fichero de resúmenes a validar", width = 6,
-                            strong("Nombre del fichero actual:"),verbatimTextOutput("currentSummariesFile"),
-                            radioButtons("changeSummariesFile",label="Desea cambiar el fichero de resúmenes a validar ",
-                                         choices=list("Yes" = 1, "No" = 2),
-                                         selected = 2),
-                            conditionalPanel(
-                              condition = "input.changeSummariesFile == 1",
-                              fileInput("newSummariesFile",label="Subir el nuevo fichero con los resúmenes a validar (solo csv)",
-                                        multiple = FALSE, accept = ".csv")
-                            )
-                        ),
-                    )),#outer box y fluidRow
-                  #actionButton("saveConfig", label= "Guardar configuración",class="btn-info"),
-                  actionButton('saveConfig',span("Guardar configuración",id="UpdateAnimateSaveConfig",class="")),
-                  ######
                   tags$head(tags$style(type="text/css", '
             .loading {
                 display: inline-block;
@@ -392,7 +347,55 @@ server <- function(input, output, session) {
                 text-align: left;
             }
             @keyframes spin10 { to { transform: translateY(-15.0em); } }
-            '))
+            ')),
+                  fluidRow(
+                    box(title="Tamaño de la muestra a validar", width = 12, solidHeader = TRUE,status = "primary",
+                        box(width=6,
+                            strong("Número total de artículos-resúmenes: "), verbatimTextOutput("numberRowsArticles"),
+                            strong("Tamaño actual de la muestra (en %):"), verbatimTextOutput("currentSampleSize"),
+                            strong("Tamaño actual de la muestra (nº): "), verbatimTextOutput("numberCurrentSampleRows")),
+                        box(width=6,
+                            numericInput("sample",label='Seleccione el tamaño de la muestra a validar [en %]',
+                                         min=1, max=100, value=conf$sampleSize),
+                            p("El tamaño de la muestra sería (nº): "), verbatimTextOutput("numberRowsSample")
+                        ))),
+                  fluidRow(
+                    box(title="Número de validaciones y nivel de acuerdo mínimo por resumen", width = 12, solidHeader = TRUE,status = "primary",
+                        box(title="Número mínimo de validaciones por resumen", width = 6,
+                            strong("Mínimo número actual de validaciones por resumen: "), verbatimTextOutput("minValid"),
+                            sliderInput("minValid",label='Seleccione el número mínimo de validaciones por resumen:',
+                                        min=3, max=10, value = conf$minNumValid)),
+                        box(title="Mínimo % de nivel de acuerdo por resumen", width = 6,
+                            strong("Mínimo % actual de acuerdo por resumen: "), verbatimTextOutput("minAgreem"),
+                            sliderInput("minAgreem",label='Seleccione el tamaño de la muestra a validar [en %]',
+                                        min=0, max=100, value = conf$minLevelAgreem)
+                        ))),
+                  fluidRow(
+                    box(width = 12, title = "Gestión de ficheros",solidHeader = TRUE,status = "primary",
+                        box(title="Fichero de artículos a validar", width = 6,
+                            strong("Nombre del fichero actual:"),verbatimTextOutput("currentArticlesFile"),
+                            radioButtons("changeArticlesFile",label="Desea cambiar el fichero de artículos a validar ",
+                                         choices=list("Yes" = 1, "No" = 2),
+                                         selected = 2),
+                            conditionalPanel(
+                              condition = "input.changeArticlesFile == 1",
+                              fileInput("newArticlesFile",label="Subir el nuevo fichero con los resúmenes a validar (solo csv)",
+                                        multiple = FALSE, accept = ".csv")
+                            )
+                        ),
+                        box(title="Fichero de resúmenes a validar", width = 6,
+                            strong("Nombre del fichero actual:"),verbatimTextOutput("currentSummariesFile"),
+                            radioButtons("changeSummariesFile",label="Desea cambiar el fichero de resúmenes a validar ",
+                                         choices=list("Yes" = 1, "No" = 2),
+                                         selected = 2),
+                            conditionalPanel(
+                              condition = "input.changeSummariesFile == 1",
+                              fileInput("newSummariesFile",label="Subir el nuevo fichero con los resúmenes a validar (solo csv)",
+                                        multiple = FALSE, accept = ".csv")
+                            )
+                        ),
+                    )),#outer box y fluidRow
+                  actionButton('saveConfig',span("Guardar configuración",id="UpdateAnimateSaveConfig",class="")),
           ),#tabItem manageEvalSummaries
           tabItem(tabName ="dashboadEvalSummaries",
                   fluidRow(
@@ -419,41 +422,8 @@ server <- function(input, output, session) {
                         textInput("usernameInput", label = "Ingrese el nombre de usuario", value = ""),
                         textInput("pswInput", label = "Ingrese la contraseña", value = ""),
                         selectInput("typeUserInput", label = "Seleccione",
-                                    choices = credentials()$permission),
-                        #actionButton("saveNewUser", label= "Crear nuevo usuario",class="btn-primary")
+                                    choices = credentials$permission),
                         actionButton("saveNewUser", span("Guardar Nuevo Usuario", id="UpdateAnimateSaveUser", class="")),
-                        #####
-                        tags$head(tags$style(type="text/css", '
-            .loading {
-                display: inline-block;
-                overflow: hidden;
-                height: 1.3em;
-                margin-top: -0.3em;
-                line-height: 1.5em;
-                vertical-align: text-bottom;
-                box-sizing: border-box;
-            }
-            .loading.dots::after {
-                text-rendering: geometricPrecision;
-                content: "⠋\\A⠙\\A⠹\\A⠸\\A⠼\\A⠴\\A⠦\\A⠧\\A⠇\\A⠏";
-                animation: spin10 1s steps(10) infinite;
-                animation-duration: 1s;
-                animation-timing-function: steps(10);
-                animation-delay: 0s;
-                animation-iteration-count: infinite;
-                animation-direction: normal;
-                animation-fill-mode: none;
-                animation-play-state: running;
-                animation-name: spin10;
-            }
-            .loading::after {
-                display: inline-table;
-                white-space: pre;
-                text-align: left;
-            }
-            @keyframes spin10 { to { transform: translateY(-15.0em); } }
-            '))
-                    ),
                     # box(width = 6, title = "Modificar usuario",solidHeader = TRUE,status = "primary",
                     #     selectInput("usernameInputChg", label = "Seleccione",
                     #                 choices = credentials()$username_id),
@@ -462,7 +432,7 @@ server <- function(input, output, session) {
                     #                 choices = list("expert", "admin")),
                     #     actionButton("changeUser", label= "Modificar usuario",class="btn-primary")
                     # )
-                    ),
+                    )), #box + fluidRow
                   fluidRow(
                     box(width = 12, title = "Listado de usuarios",solidHeader = TRUE,status = "primary",
                         checkboxGroupInput("cgTypeUser", label = "Filtrar por tipo de usuario",
@@ -475,39 +445,8 @@ server <- function(input, output, session) {
                   box(width = 6, title = "Guardar workspace",solidHeader = TRUE,status = "primary",
                       #actionButton("saveImage", label = "Guardar")
                       actionButton("saveImage", span("Guardar", id="UpdateAnimateSaveImage", class="")),
-                      #####
-                      tags$head(tags$style(type="text/css", '
-            .loading {
-                display: inline-block;
-                overflow: hidden;
-                height: 1.3em;
-                margin-top: -0.3em;
-                line-height: 1.5em;
-                vertical-align: text-bottom;
-                box-sizing: border-box;
-            }
-            .loading.dots::after {
-                text-rendering: geometricPrecision;
-                content: "⠋\\A⠙\\A⠹\\A⠸\\A⠼\\A⠴\\A⠦\\A⠧\\A⠇\\A⠏";
-                animation: spin10 1s steps(10) infinite;
-                animation-duration: 1s;
-                animation-timing-function: steps(10);
-                animation-delay: 0s;
-                animation-iteration-count: infinite;
-                animation-direction: normal;
-                animation-fill-mode: none;
-                animation-play-state: running;
-                animation-name: spin10;
-            }
-            .loading::after {
-                display: inline-table;
-                white-space: pre;
-                text-align: left;
-            }
-            @keyframes spin10 { to { transform: translateY(-15.0em); } }
-            '))
-                  )
-          )
+                  ) #box
+          ) #tabItem
         )#tabItems
       } #fin if cuando el usuario es el administrador
     }
@@ -525,7 +464,7 @@ server <- function(input, output, session) {
   })
   
   output$currentSampleSize <- renderPrint({
-    conf()$sampleSize
+    conf$sampleSize
   })
   
   output$numberCurrentSampleRows <- renderPrint({
@@ -537,19 +476,19 @@ server <- function(input, output, session) {
   })
   
   output$minValid <- renderPrint({
-    conf()$minNumValid
+    conf$minNumValid
   })
   
   output$minAgreem <- renderPrint({
-    conf()$minLevelAgreem
+    conf$minLevelAgreem
   })
   
   output$currentSummariesFile <- renderPrint({
-    conf()$fileSummaries
+    conf$fileSummaries
   })
   
   output$currentArticlesFile <- renderPrint({
-    conf()$fileArticles
+    conf$fileArticles
   })
   
   # updateSelectInput(session, "selectTitle",
@@ -565,8 +504,8 @@ server <- function(input, output, session) {
     newSampleSize <- input$sample
     newMinNumValid <- input$minValid
     newMinLevelAgreem <- input$minAgreem
-    newSummariesFile <- conf()$fileSummaries
-    newArticlesFile <- conf()$fileArticles
+    newSummariesFile <- conf$fileSummaries
+    newArticlesFile <- conf$fileArticles
     if(input$changeSummariesFile == 1){
       if(input$newSummariesFile$type == "text/csv"){
         newSummariesFile <- input$newSummariesFile$name
@@ -574,10 +513,10 @@ server <- function(input, output, session) {
         dir.create("tempdir")
         file.copy(input$newSummariesFile$datapath, file.path("tempdir",input$newSummariesFile$name))
         drop_upload(paste0("tempdir/",input$newSummariesFile$name),inputDir, mode = "overwrite")
-        summaries <- paste0(inputDir,conf()$fileSummaries)
+        summaries <- paste0(inputDir,conf$fileSummaries)
       }
       else{
-        msg <- paste0("No se puede cargar el fichero ",conf()$fileSummaries ," porque no es de tipo csv")
+        msg <- paste0("No se puede cargar el fichero ",conf$fileSummaries ," porque no es de tipo csv")
         shinyalert(title=msg,type="warning")
         message(msg)
       }
@@ -590,17 +529,17 @@ server <- function(input, output, session) {
         dir.create("tempdir")
         file.copy(input$newArticlesFile$datapath, file.path("tempdir",input$newArticlesFile$name))
         drop_upload(paste0("tempdir/",input$newArticlesFile$name),inputDir, mode = "overwrite")
-        articles <<- loadCSV(paste0(inputDir,conf()$fileArticles))
+        articles <<- loadCSV(paste0(inputDir,conf$fileArticles))
       }
       else{
-        msg <- paste0("No se puede cargar el fichero ",conf()$fileArticles," porque no es de tipo csv")
+        msg <- paste0("No se puede cargar el fichero ",conf$fileArticles," porque no es de tipo csv")
         shinyalert(title=msg,type="warning")
         message(msg)
       }
     }
     filePath <- file.path(tempdir(),"conf.csv")
-    newConf <- data.frame(matrix(ncol=length(conf()),nrow=1))
-    colnames(newConf) <- colnames(conf())
+    newConf <- data.frame(matrix(ncol=length(conf),nrow=1))
+    colnames(newConf) <- colnames(conf)
     newConf$sampleSize <- newSampleSize
     newConf$fileSummaries <- newSummariesFile
     newConf$fileArticles <- newArticlesFile
@@ -608,7 +547,8 @@ server <- function(input, output, session) {
     newConf$minLevelAgreem <- newMinLevelAgreem
     write.table(newConf,file=filePath,append = FALSE,sep=',',row.names = FALSE) #,col.names = FALSE)
     drop_upload(filePath,inputDir)
-    #conf() <<- newConf #############################
+    conf <<- newConf #############################
+    rv$conf <<- rv$conf + 1
     shinyalert(title="Configuración actualizada",type="success")
     shinyjs::enable("saveConfig")
     shinyjs::removeClass(id = "UpdateAnimateSaveConfig", class = "loading dots")
@@ -617,7 +557,9 @@ server <- function(input, output, session) {
   #Manage Users
   ######
   output$tableUsers <-  DT::renderDataTable({
-    data <- credentials() %>% select(username_id,permission) %>% filter(permission %in% input$cgTypeUser)
+    rv$cred
+    
+    data <- credentials %>% select(username_id,permission) %>% filter(permission %in% input$cgTypeUser)
     datatable(data, options = list(autoWidth = TRUE,searching = FALSE))
   })
   
@@ -625,12 +567,12 @@ server <- function(input, output, session) {
   observeEvent(input$saveNewUser,{
     shinyjs::addClass(id = "UpdateAnimateSaveUser", class = "loading dots")
     shinyjs::disable("saveUser")
-    newUser <- data.frame(matrix(ncol=length(credentials()),nrow=1))
-    colnames(newUser) <- colnames(credentials())
+    newUser <- data.frame(matrix(ncol=length(credentials),nrow=1))
+    colnames(newUser) <- colnames(credentials)
     newUser$username_id = input$usernameInput
     newUser$passod = sapply(input$pswInput, sodium::password_store)
     newUser$permission = input$typeUserInput
-    if(input$usernameInput %in% credentials()$username_id){
+    if(input$usernameInput %in% credentials$username_id){
       shinyalert(title="Nombre de usuario repetido, elija otro",type="error")
     }
     else{
@@ -638,7 +580,8 @@ server <- function(input, output, session) {
         filePath <- file.path(tempdir(),"users.csv")
         write.table(newUser,file=filePath,append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
         drop_upload(filePath,inputDir)
-        #credentials <<- rbind(credentials,newUser) #No debería ser necesario porque debería volver a subir con reactiveFileReader
+        credentials <<- rbind(credentials,newUser)
+        rv$cred <<- rv$cred + 1
         shinyalert(title="Nuevo usuario creado",type="success")
         updateTabItems(session, inputId = "tabsAdmin", selected = "users") #--> no funciona
       }
