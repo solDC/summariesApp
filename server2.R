@@ -20,13 +20,10 @@ library(rdrop2)
 server <- function(input, output, session) {
   
   # Cross-session reactive file reader session=NULL. In this example, all sessions share
-  # the same reader, so it only gets executed once no matter how many user sessions are connected
-  conf <- reactiveFileReader(1000,NULL,paste0(inputDir,"conf.csv"),loadCSV)
-  credentials <- reactiveFileReader(1000,NULL,paste0(inputDir,"users.csv"),loadCSV)
+  # the same reader, so it only gets executed once no matter how many user sessions are connected --> no actualizaba
+  conf <<- reactiveFileReader(100,NULL,paste0(inputDir,"conf.csv"),loadCSV)
+  credentials <<- reactiveFileReader(100,NULL,paste0(inputDir,"users.csv"),loadCSV)
 
-  #rv <<- reactiveValues(conf=0,cred=0)
-  
-  
   articles <<- reactive({
     req(conf())
     articles <- loadCSV(paste0(inputDir,conf()$fileArticles))
@@ -89,8 +86,6 @@ server <- function(input, output, session) {
   
   observe({
     req(credentials())
-    req(conf())
-    req(articles())
     if (USER$login == FALSE) {
       if (!is.null(input$login)) {
         if (input$login > 0) {

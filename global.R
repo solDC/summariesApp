@@ -1,12 +1,5 @@
 library(shiny)
-library(shinydashboard)
-library(shinyjs)
-library(dplyr) 
-library(tidyr) #spread
-#library(readr) #read txt more efficient
 library(rdrop2)
-#library(httr)
-library(shinyalert)
 
 # Done once to create Dropbox authentification tokens
 token<-drop_auth()
@@ -20,10 +13,8 @@ outputDir <- "summariesApp/responses/"
 inputDir <- "summariesApp/data/"
 
 # Utility function to load csv files from dropbox
-loadCSV <- function(path,fileName){
+loadCSV <- function(filePath){
   f <- tryCatch({
-    filePath <- paste0(path,fileName) #,".csv")
-    print(filePath)
     # WARNING: next line needs to be the last one so the return value is the uploaded file
     drop_read_csv(file=filePath,dest = tempdir(),dtoken=token)
   },
@@ -31,49 +22,43 @@ loadCSV <- function(path,fileName){
     msg <- paste0("Error: no se ha podido leer el fichero ",filePath)
     message(msg)
     message(e$message)
-    # shinyalert(title="Salga de la aplicación y hable con su administrador",
-    #            text=paste0("No se ha cargado el fichero ",filePath," necesario el funcionamiento de la aplicación."),
-    #            type="error")
+    shinyalert(title="Salga de la aplicación y hable con su administrador",
+                text=paste0("No se ha cargado el fichero ",filePath," necesario el funcionamiento de la aplicación."),
+                type="error")
     return(NULL)
   })
 }
 
-# Load files --> only one time when app loads
-conf <- loadCSV(inputDir,"conf.csv")
-credentials <- loadCSV(inputDir,"users.csv")
-
-# Load Articles and Summaries
-# Articles and Summaries are related by its position in the file
-# I will only kept the ones the users need to validate (random sample depending on sample size defined by admin)
 set.seed(123)
-if(is.null(conf)){
-  message("Error al leer el fichero configuración, sin contenido")
-} else{
-  articles <- loadCSV(inputDir,conf$fileArticles)
-  numArticles <- nrow(articles)
-  summaries <- loadCSV(inputDir,conf$fileSummaries)  
-  sampleSize <- round(conf$sampleSize*numArticles/100,0)
-  samplePositions <- sort(sample(1:numArticles,sampleSize,replace=F))
-  articles <- articles[samplePositions,]
-  articles$position <- samplePositions
-  summaries <- as.data.frame(summaries[samplePositions,])
-  summaries$position <- samplePositions
-  colnames(summaries) <- c("summary","articlesPosition")
-}
 
-# Data structure of user validation responses
-names <- c("usernameId","position","question1","question2","question3","timeStamp","summariesNameFile","articlesNameFile","articleTitle")
-numColEV <- length(names)
-expertsValidationsColNames <- vector("character",numColEV)
-expertsValidationsColNames <- names
+# Main login screen
+#####
+loginpage <- div(id = "loginpage", style = "width: 500px; max-width: 100%; margin: 0 auto; padding: 20px;",
+                 wellPanel(
+                   tags$h2("LOG IN", class = "text-center", style = "padding-top: 0;color:#333; font-weight:600;"),
+                   textInput("userName", placeholder="Username", label = tagList(icon("user"), "Username")),
+                   passwordInput("passwd", placeholder="Password", label = tagList(icon("unlock-alt"), "Password")),
+                   br(),
+                   div(
+                     style = "text-align: center;",
+                     actionButton("login", "SIGN IN", style = "color: white; background-color:#3c8dbc;
+                                 padding: 10px 15px; width: 150px; cursor: pointer;
+                                 font-size: 18px; font-weight: 600;"),#,icon=icon("far fa-sign-in",lib= "font-awesome")
+                     shinyjs::hidden(
+                       div(id = "nomatch",
+                           tags$p("Oops! Incorrect username or password!",
+                                  style = "color: red; font-weight: 600; 
+                                            padding-top: 5px;font-size:16px;", 
+                                  class = "text-center"))),
+                     br(),
+                     #a("Create new account"),
+                     br(),
+                     tags$code("Username: admin  Password: adminpass"),
+                     br(),
+                     tags$code("Username: user1  Password: pass1"),
+                     br(),
+                     tags$code("Username: user2  Password: pass2")
+                   ))
+)
 
-# Load experts validations (each file with anwers)
-filesInfo <- drop_dir(outputDir)
-if(dim(filesInfo)[1] >= 1){ 
-  filePaths <- filesInfo$path_display
-  expertsValidations <- lapply(filePaths, drop_read_csv, stringsAsFactors=FALSE)
-  expertsValidations <- do.call(rbind,expertsValidations)
-  expertsValidations <-  filter(expertsValidations,summariesNameFile == conf$fileSummaries)
-  expertsValidations <- filter(expertsValidations,articlesNameFile == conf$fileArticles)
-}
-  
+
