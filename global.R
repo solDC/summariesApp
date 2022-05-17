@@ -35,9 +35,14 @@ conf <- loadCSV(paste0(inputDir,"conf.csv"))
 credentials <- loadCSV(paste0(inputDir,"users.csv"))
 
 onStop(function(){
-  filePath <- file.path(tempdir(),"users.csv")
-  write.table(credentials,file=filePath,append = FALSE,sep=',',col.names = TRUE, row.names = FALSE)
-  drop_upload(filePath,inputDir,mode = "overwrite")
+  # Save credentials 
+  filePathCd <- file.path(tempdir(),"users.csv")
+  write.table(credentials,file=filePathCd,append = FALSE,sep=',',col.names = TRUE, row.names = FALSE)
+  drop_upload(filePathCd,inputDir,mode = "overwrite")
+  # Save conf
+  filePathCf <- file.path(tempdir(),"conf.csv")
+  write.table(conf,file=filePathCf,append = FALSE,sep=',',row.names = FALSE) 
+  drop_upload(filePathCf,inputDir)
 })
 
 
