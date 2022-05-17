@@ -26,8 +26,8 @@ loadCSV <- function(filePath){
     message(e$message)
     #Shiny alerts solo sirve si dentro de la app, sino consola
     shinyalert(title="Salga de la aplicación y hable con su administrador",
-                text=paste0("No se ha cargado el fichero ",filePath," necesario el funcionamiento de la aplicación."),
-                type="error")
+               text=paste0("No se ha cargado el fichero ",filePath," necesario el funcionamiento de la aplicación."),
+               type="error")
     return(NULL)
   })
 }
@@ -36,7 +36,6 @@ conf <- loadCSV(paste0(inputDir,"conf.csv"))
 credentials <- loadCSV(paste0(inputDir,"users.csv"))
 
 if( !is.null(conf)){
-  
   articles <- loadCSV(paste0(inputDir,conf$fileArticles))
   sum <- loadCSV(paste0(inputDir,conf$fileSummaries)) 
 }else{
@@ -87,5 +86,3 @@ loginpage <- div(id = "loginpage", style = "width: 500px; max-width: 100%; margi
                      tags$code("Username: user2  Password: pass2")
                    ))
 )
-
-

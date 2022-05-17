@@ -19,65 +19,22 @@ library(rdrop2)
 ########
 server <- function(input, output, session) {
 
-  rv <<- reactiveValues(cred=0, confS=0, confAg=0, confArt=0, confSum=0)
+  rv <<- reactiveValues(cred=0, conf = 0, confS=0, confAg=0, confArt=0, confSum=0)
+  validation <<- reactiveValues(init=0, numArticles = 0, sampleSize = 0)
+  articlesValidate <<- reactiveVal(NULL)
   
-  articles <<- reactive({
-    rv$confArt
-    loadCSV(paste0(inputDir,conf$fileArticles))
-  })
-
-  summaries <<- reactive({
-    rv$confSum
-    oadCSV(paste0(inputDir,conf$fileSummaries))
-  })
-  
-  numArticles <<- reactive({
-    req(articles())
-    rv$confArt
-    message(" calcula numero de filas articulos")
-    nrow(articles())
-  })
-  
-  sampleSize <<- reactive({
-    req(numArticles())
-    rv$confS
-    
-    message(" calcula sample size")
-    round(conf$sampleSize*numArticles()/100,0)
-  })
-  
-  samplePositions <<- reactive({
-    req(numArticles())
-    req(sampleSize())
-    rv$confS
-    rv$confArt
-    
-    message(" calcula sample positions")
-    sort(sample(1:numArticles(),sampleSize(),replace=F))
-  })
-  
-  articlesValidate <<- reactive({
-    rv$confS
-    rv$confArt
-    req(samplePositions())
-    req(articles())
-    
-    message("calcula articulos validar")
-    articlesValidate <- articles()[samplePositions(),]
-    articlesValidate$position <- samplePositions()
-    articlesValidate
-  })
 
   summariesValidate <<- reactive({
     rv$confS
     rv$confSum
-    req(summaries())
     req(samplePositions())
     
     message("calcula summariesValidate")
+    
     summariesValidate <- as.data.frame(summaries[samplePositions(),])
     summariesValidate$position <- samplePositions()
     colnames(summariesValidate) <- c("summary","articlesPosition")  
+    print(head(summariesValidate))
     summariesValidate
   })
   
@@ -89,7 +46,6 @@ server <- function(input, output, session) {
   
   observe({
     rv$cred
-    req(articles())
     
     if (USER$login == FALSE) {
       if (!is.null(input$login)) {
@@ -168,57 +124,66 @@ server <- function(input, output, session) {
     }
   })
   
-#   observeEvent(input$login,{
-#   if (USER$login == TRUE) {
-#     if(typeUser() == "expert"){
-#       
-#       #EXPERT_VALIDATION$df <- loadCSV(outputDir,FILENAMEEV$name)
-#       
-#       #filter positions of validated articles by logged user
-#       
-#       print(expertsValidations %>%
-#               filter(usernameId == USERNAME$name))
-#       validatedTitlesPos <- expertsValidations %>% filter(usernameId == USERNAME$name) %>% select(position)
-#       VALIDATIONS$positions <- as.data.frame(validatedTitlesPos)
-#       print(validatedTitlesPos)
-#       # If there's agreement in certain summaries-articles, there's no need of validating them any more
-#       if(AGREEM$n==1){
-#         posDiscard <- AGREEMENTS$table%>% filter(agreemPerc > conf$minLevelAgreem) %>%  select(position)
-#         print(posDiscard$position)
-#         ARTICLES$df <- subset(articles,!(position %in% posDiscard$position))
-#       }
-#       # Randomize titles to validate so different users validate articles in different order
-#       if (length(VALIDATIONS$positions) >= 1){
-#         TITLES$userTitles <- sample(ARTICLES$df[!(row.names(ARTICLES$df) %in% VALIDATIONS$positions$position),3])
-#       }
-#       else{
-#         TITLES$userTitles <- sample(ARTICLES$df$title)
-#       }
-#     }
-#     else{#user admin
-#       if(is.null(articles)){
-#         message("El fichero con los artículos cuyos resúmenes hay que validar no se ha cargado.")
-#       }
-#       else{
-#         if(is.null(summaries)){
-#           message("El fichero con los resúmenes no se ha cargado.")
-#         }
-#         else{
-#           print("crea admin articles")
-#           adminArticles <- cbind(articles,summaries$summary)
-#           names(adminArticles)[length(adminArticles)] <- "generatedSummary"
-#           #agregar nivel de cuerdo
-#           if(AGREEM$n == 1){
-#             dfa <- AGREEMENTS$table %>%  select(position,agreemPerc,agreedAnswer)
-#             ADMIN_ARTICLES$df <- adminArticles %>% left_join(dfa,by="position")
-#           }
-#         }
-#       }
-#     } #end if user admin
-#   }#if login true
-# })
+  observeEvent(input$login,{
+  if (USER$login == TRUE) {
+    # if(typeUser() == "expert"){
+    # 
+    #   #EXPERT_VALIDATION$df <- loadCSV(outputDir,FILENAMEEV$name)
+    # 
+    #   #filter positions of validated articles by logged user
+    # 
+    #   print(expertsValidations %>%
+    #           filter(usernameId == USERNAME$name))
+    #   validatedTitlesPos <- expertsValidations %>% filter(usernameId == USERNAME$name) %>% select(position)
+    #   VALIDATIONS$positions <- as.data.frame(validatedTitlesPos)
+    #   print(validatedTitlesPos)
+    #   # If there's agreement in certain summaries-articles, there's no need of validating them any more
+    #   if(AGREEM$n==1){
+    #     posDiscard <- AGREEMENTS$table%>% filter(agreemPerc > conf$minLevelAgreem) %>%  select(position)
+    #     print(posDiscard$position)
+    #     ARTICLES$df <- subset(articles,!(position %in% posDiscard$position))
+    #   }
+    #   # Randomize titles to validate so different users validate articles in different order
+    #   if (length(VALIDATIONS$positions) >= 1){
+    #     TITLES$userTitles <- sample(ARTICLES$df[!(row.names(ARTICLES$df) %in% VALIDATIONS$positions$position),3])
+    #   }
+    #   else{
+    #     TITLES$userTitles <- sample(ARTICLES$df$title)
+    #   }
+    # }
+    # else{#user admin
+      if(is.null(articles)){
+        message("El fichero con los artículos cuyos resúmenes hay que validar no se ha cargado.")
+      }
+      else{
+        if(is.null(summaries)){
+          message("El fichero con los resúmenes no se ha cargado.")
+        }
+        else{
+          if(conf$init == 0){
+            print("Init == 0")
+            click("stopValid")
+          }
+          else{
+            print("Init == 1")
+            click("startValid")       
+          }
 
-  
+          
+          # print("crea admin articles")
+          # adminArticles <- cbind(articles,summaries$summary)
+          # names(adminArticles)[length(adminArticles)] <- "generatedSummary"
+          # #agregar nivel de cuerdo
+          # if(AGREEM$n == 1){
+          #   dfa <- AGREEMENTS$table %>%  select(position,agreemPerc,agreedAnswer)
+          #   ADMIN_ARTICLES$df <- adminArticles %>% left_join(dfa,by="position")
+          # }
+        }
+      }
+    # } #end if user admin
+  }#if login true
+})
+
   output$body <- renderUI({
     if (USER$login == TRUE) {
       rv$confSum
@@ -316,6 +281,25 @@ server <- function(input, output, session) {
         tabItems(
           tabItem(tabName = "manageEvalSummaries", class = "active",
                   fluidRow(
+                    box(title="Configuración de la validación", width = 12, solidHeader = TRUE,status = "primary",
+                        p("En esta pestaña podrá", strong(" configurar la validación "),"a realizar indicanco los ficheros 
+                          de artículos y resúmenes a utilizar, el tamaño de muestra y parámetros para el cálculo de acuerdo."),
+                        p("Una vez que la configuración sea la definitiva, ", strong("active el experimento con el botón <<Iniciar>> "), "de 
+                        esta sección para que los expertos puedan realizar las validaciones. Se iniciarán todas las estructuras necesarias
+                          para llevar a cabo y almacenar los resultados de la validación. "),
+                        p(strong("Para configurar un nuevo experimento, "),"deberá deshabilitar el experimento con el ",
+                          strong("botón <<Parar>>")," de esta sección. Se almacenarán en disco todas las estructuras creadas anteriormente."),
+                        )),
+                  fluidRow(
+                    useShinyjs(),
+                      box(title="Iniciar Validación", width = 6, solidHeader = TRUE,status = "primary",
+                          actionButton("startValid", label = "Iniciar",class="btn-success" )),
+                      box(title="Parar Validación", width = 6, solidHeader = TRUE,status = "primary",
+                          actionButton("stopValid", label = "Parar",class="btn-danger" )),
+                  ), #fluidRow buttons
+                fluidRow(
+                  box(title="Configuración", width = 12, solidHeader = TRUE,status = "primary",
+                  fluidRow(
                     box(title="Tamaño de la muestra a validar", width = 12, solidHeader = TRUE,status = "primary",
                         box(width=6,
                             strong("Número total de artículos-resúmenes: "), verbatimTextOutput("numberRowsArticles"),
@@ -367,9 +351,9 @@ server <- function(input, output, session) {
                                         multiple = FALSE, accept = ".csv"),
                             actionButton('saveNewSumFile',label="Guardar",class="btn-primary")
                             ),
-                        ),#outer box
-                    ),#fluidRow
-                  #actionButton('saveConfig',span("Guardar configuración",id="UpdateAnimateSaveConfig",class="")),
+                        ),#outer box files
+                    )),#fluidRow and outer box conf
+          ) #fluidRow config
           ),#tabItem manageEvalSummaries
           tabItem(tabName ="dashboadEvalSummaries",
                   fluidRow(
@@ -518,6 +502,42 @@ server <- function(input, output, session) {
     conf$fileArticles
   })
   
+  observeEvent(input$startValid,{
+    #crear tablas base: agreem, user validations, muestra articulos a validar, deshabilitar botones conf
+    conf$init <- 1
+    shinyjs::disable("saveNewSumFile")
+    shinyjs::disable("saveNewArtFile")
+    shinyjs::disable("saveParamAgreem")
+    shinyjs::disable("saveSampleSize")
+    shinyjs::disable("startValid")
+    print("asigna 1 a conf$init - iniciado")
+    if( !is.null(conf)){
+      articles <- loadCSV(paste0(inputDir,conf$fileArticles))
+      summaries <- loadCSV(paste0(inputDir,conf$fileSummaries)) 
+      validation$numRows <<- nrow(articles)
+      validation$sampleSize <<- round(conf$sampleSize*numArticles()/100,0)
+      validation$samplePositions <<- sort(sample(1:numArticles(),sampleSize(),replace=F))
+      av <- articles[samplePositions(),]
+      av$position <- samplePositions()
+      articlesValidate(av)
+    }else{
+      shinyalert(title="Salta de la aplicación", text="Se necesita el fichero de configuración para continuar.",
+                 closeOnClickOutside = TRUE, type="error")
+    }
+  })  
+  
+  observeEvent(input$stopValid,{
+    #crear tablas base: agreem, user validations, muestra articulos a validar, deshabilitar botones conf
+    conf$init <- 0
+    print("asigna 0 a conf$init - no iniciado")
+    shinyjs::disable("stopValid")
+    shinyjs::enable("saveNewSumFile")
+    shinyjs::enable("saveNewArtFile")
+    shinyjs::enable("saveParamAgreem")
+    shinyjs::enable("saveSampleSize")
+    shinyjs::enable("startValid")
+  }) 
+  
   #####
   observeEvent(input$saveSampleSize,{
     print("Se va a cambiar el tamaño de la muestra en conf")
@@ -540,12 +560,13 @@ server <- function(input, output, session) {
   #####
   observeEvent(input$saveNewArtFile,{
     print("Se va a cambiar el fichero de artículos a validar")
-    if(input$newArticlesFile$type == "text/csv"){
+    if(!is.null(input$newArticlesFile) && input$newArticlesFile$type == "text/csv"){
       dir.create("tempdir")
       file.copy(input$newArticlesFile$datapath, file.path("tempdir",input$newArticlesFile$name))
       drop_upload(paste0("tempdir/",input$newArticlesFile$name),inputDir, mode = "overwrite")
       conf$fileArticles <<- input$newArticlesFile$name
       print(conf$fileArticles)
+      articles <<- loadCSV(paste0(inputDir,conf$fileArticles))
       rv$confArt <<- rv$confArt + 1
       print(rv$confArt)
       shinyalert(title="Nuevo fichero de artículos almacenado", closeOnClickOutside = TRUE, type="success")
@@ -560,12 +581,14 @@ server <- function(input, output, session) {
   #####
   observeEvent(input$saveNewSumFile,{
     print("Se va a cambiar el fichero de resúmenes a validar")
-    if(input$newSummariesFile$type == "text/csv"){
+    if(!is.null(input$newSummariesFile) && input$newSummariesFile$type == "text/csv"){
       dir.create("tempdir")
       file.copy(input$newSummariesFile$datapath, file.path("tempdir",input$newSummariesFile$name))
       drop_upload(paste0("tempdir/",input$newSummariesFile$name),inputDir, mode = "overwrite")
       conf$fileSummaries <<- input$newSummariesFile$name
       print(conf$fileSummaries)
+      summaries <<- loadCSV(paste0(inputDir,conf$fileSummaries))
+      print(head(summaries))
       rv$confSum <<- rv$confSum + 1
       print(rv$confSum)
       shinyalert(title="Nuevo fichero de resúmenes almacenado", closeOnClickOutside = TRUE, type="success")
@@ -581,7 +604,6 @@ server <- function(input, output, session) {
   ######
   output$tableUsers <-  DT::renderDataTable({
     rv$cred
-    
     data <- credentials %>% select(username_id,permission) %>% filter(permission %in% input$cgTypeUser)
     datatable(data, options = list(autoWidth = TRUE,searching = FALSE))
   })
