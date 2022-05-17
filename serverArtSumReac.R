@@ -21,20 +21,21 @@ server <- function(input, output, session) {
 
   rv <<- reactiveValues(cred=0, confS=0, confAg=0, confArt=0, confSum=0)
   
-  # articles <<- reactive({
-  #   rv$confArt
-  #   loadCSV(paste0(inputDir,conf$fileArticles))
-  # })
-  # 
-  # summaries <<- reactive({
-  #   rv$confSum
-  #   oadCSV(paste0(inputDir,conf$fileSummaries))
-  # })
+  articles <<- reactive({
+    rv$confArt
+    loadCSV(paste0(inputDir,conf$fileArticles))
+  })
+
+  summaries <<- reactive({
+    rv$confSum
+    oadCSV(paste0(inputDir,conf$fileSummaries))
+  })
   
   numArticles <<- reactive({
+    req(articles())
     rv$confArt
     message(" calcula numero de filas articulos")
-    nrow(articles)
+    nrow(articles())
   })
   
   sampleSize <<- reactive({
@@ -59,9 +60,10 @@ server <- function(input, output, session) {
     rv$confS
     rv$confArt
     req(samplePositions())
+    req(articles())
     
     message("calcula articulos validar")
-    articlesValidate <- articles[samplePositions(),]
+    articlesValidate <- articles()[samplePositions(),]
     articlesValidate$position <- samplePositions()
     articlesValidate
   })
@@ -69,14 +71,13 @@ server <- function(input, output, session) {
   summariesValidate <<- reactive({
     rv$confS
     rv$confSum
+    req(summaries())
     req(samplePositions())
     
     message("calcula summariesValidate")
-    
     summariesValidate <- as.data.frame(summaries[samplePositions(),])
     summariesValidate$position <- samplePositions()
     colnames(summariesValidate) <- c("summary","articlesPosition")  
-    print(head(summariesValidate))
     summariesValidate
   })
   
@@ -88,6 +89,7 @@ server <- function(input, output, session) {
   
   observe({
     rv$cred
+    req(articles())
     
     if (USER$login == FALSE) {
       if (!is.null(input$login)) {
@@ -538,13 +540,12 @@ server <- function(input, output, session) {
   #####
   observeEvent(input$saveNewArtFile,{
     print("Se va a cambiar el fichero de artículos a validar")
-    if(!is.null(input$newArticlesFile) && input$newArticlesFile$type == "text/csv"){
+    if(input$newArticlesFile$type == "text/csv"){
       dir.create("tempdir")
       file.copy(input$newArticlesFile$datapath, file.path("tempdir",input$newArticlesFile$name))
       drop_upload(paste0("tempdir/",input$newArticlesFile$name),inputDir, mode = "overwrite")
       conf$fileArticles <<- input$newArticlesFile$name
       print(conf$fileArticles)
-      articles <<- loadCSV(paste0(inputDir,conf$fileArticles))
       rv$confArt <<- rv$confArt + 1
       print(rv$confArt)
       shinyalert(title="Nuevo fichero de artículos almacenado", closeOnClickOutside = TRUE, type="success")
@@ -559,14 +560,12 @@ server <- function(input, output, session) {
   #####
   observeEvent(input$saveNewSumFile,{
     print("Se va a cambiar el fichero de resúmenes a validar")
-    if(!is.null(input$newSummariesFile) && input$newSummariesFile$type == "text/csv"){
+    if(input$newSummariesFile$type == "text/csv"){
       dir.create("tempdir")
       file.copy(input$newSummariesFile$datapath, file.path("tempdir",input$newSummariesFile$name))
       drop_upload(paste0("tempdir/",input$newSummariesFile$name),inputDir, mode = "overwrite")
       conf$fileSummaries <<- input$newSummariesFile$name
       print(conf$fileSummaries)
-      summaries <<- loadCSV(paste0(inputDir,conf$fileSummaries))
-      print(head(summaries))
       rv$confSum <<- rv$confSum + 1
       print(rv$confSum)
       shinyalert(title="Nuevo fichero de resúmenes almacenado", closeOnClickOutside = TRUE, type="success")

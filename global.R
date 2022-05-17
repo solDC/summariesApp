@@ -24,6 +24,7 @@ loadCSV <- function(filePath){
     msg <- paste0("Error: no se ha podido leer el fichero ",filePath)
     message(msg)
     message(e$message)
+    #Shiny alerts solo sirve si dentro de la app, sino consola
     shinyalert(title="Salga de la aplicación y hable con su administrador",
                 text=paste0("No se ha cargado el fichero ",filePath," necesario el funcionamiento de la aplicación."),
                 type="error")
@@ -33,6 +34,16 @@ loadCSV <- function(filePath){
 
 conf <- loadCSV(paste0(inputDir,"conf.csv"))
 credentials <- loadCSV(paste0(inputDir,"users.csv"))
+
+if( !is.null(conf)){
+  
+  articles <- loadCSV(paste0(inputDir,conf$fileArticles))
+  sum <- loadCSV(paste0(inputDir,conf$fileSummaries)) 
+}else{
+  shinyalert(title="Salta de la aplicación", text="Se necesita el fichero de configuración para continuar",
+             closeOnClickOutside = TRUE, type="error")
+}
+
 
 onStop(function(){
   # Save credentials 

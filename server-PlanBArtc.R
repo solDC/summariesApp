@@ -13,6 +13,8 @@ library(RColorBrewer)
 library(ggplot2)
 library(rdrop2)
 
+articles <- loadCSV(paste0(inputDir,conf$fileArticles))
+sum <- loadCSV(paste0(inputDir,conf$fileSummaries))
 
 ########
 # SERVER
@@ -23,18 +25,25 @@ server <- function(input, output, session) {
   
   # articles <<- reactive({
   #   rv$confArt
-  #   loadCSV(paste0(inputDir,conf$fileArticles))
+  #   
+  #   articles <- loadCSV(paste0(inputDir,conf$fileArticles))
+  #   message("Cargando artículos")
+  #   articles
   # })
   # 
   # summaries <<- reactive({
   #   rv$confSum
-  #   oadCSV(paste0(inputDir,conf$fileSummaries))
+  #   
+  #   sum <- loadCSV(paste0(inputDir,conf$fileSummaries))
+  #   message("Cargando resúmenes")
+  #   sum
   # })
   
   numArticles <<- reactive({
+    req(articles())
     rv$confArt
     message(" calcula numero de filas articulos")
-    nrow(articles)
+    nrow(articles())
   })
   
   sampleSize <<- reactive({
@@ -59,9 +68,10 @@ server <- function(input, output, session) {
     rv$confS
     rv$confArt
     req(samplePositions())
+    req(articles())
     
     message("calcula articulos validar")
-    articlesValidate <- articles[samplePositions(),]
+    articlesValidate <- articles()[samplePositions(),]
     articlesValidate$position <- samplePositions()
     articlesValidate
   })
@@ -69,14 +79,13 @@ server <- function(input, output, session) {
   summariesValidate <<- reactive({
     rv$confS
     rv$confSum
+    req(summaries())
     req(samplePositions())
     
     message("calcula summariesValidate")
-    
     summariesValidate <- as.data.frame(summaries[samplePositions(),])
     summariesValidate$position <- samplePositions()
     colnames(summariesValidate) <- c("summary","articlesPosition")  
-    print(head(summariesValidate))
     summariesValidate
   })
   
@@ -88,6 +97,7 @@ server <- function(input, output, session) {
   
   observe({
     rv$cred
+    req(articles())
     
     if (USER$login == FALSE) {
       if (!is.null(input$login)) {
@@ -538,13 +548,13 @@ server <- function(input, output, session) {
   #####
   observeEvent(input$saveNewArtFile,{
     print("Se va a cambiar el fichero de artículos a validar")
-    if(!is.null(input$newArticlesFile) && input$newArticlesFile$type == "text/csv"){
+    if(input$newArticlesFile$type == "text/csv"){
       dir.create("tempdir")
       file.copy(input$newArticlesFile$datapath, file.path("tempdir",input$newArticlesFile$name))
       drop_upload(paste0("tempdir/",input$newArticlesFile$name),inputDir, mode = "overwrite")
       conf$fileArticles <<- input$newArticlesFile$name
-      print(conf$fileArticles)
       articles <<- loadCSV(paste0(inputDir,conf$fileArticles))
+      print(conf$fileArticles)
       rv$confArt <<- rv$confArt + 1
       print(rv$confArt)
       shinyalert(title="Nuevo fichero de artículos almacenado", closeOnClickOutside = TRUE, type="success")
@@ -559,14 +569,13 @@ server <- function(input, output, session) {
   #####
   observeEvent(input$saveNewSumFile,{
     print("Se va a cambiar el fichero de resúmenes a validar")
-    if(!is.null(input$newSummariesFile) && input$newSummariesFile$type == "text/csv"){
+    if(input$newSummariesFile$type == "text/csv"){
       dir.create("tempdir")
       file.copy(input$newSummariesFile$datapath, file.path("tempdir",input$newSummariesFile$name))
       drop_upload(paste0("tempdir/",input$newSummariesFile$name),inputDir, mode = "overwrite")
       conf$fileSummaries <<- input$newSummariesFile$name
-      print(conf$fileSummaries)
       summaries <<- loadCSV(paste0(inputDir,conf$fileSummaries))
-      print(head(summaries))
+      print(conf$fileSummaries)
       rv$confSum <<- rv$confSum + 1
       print(rv$confSum)
       shinyalert(title="Nuevo fichero de resúmenes almacenado", closeOnClickOutside = TRUE, type="success")
@@ -589,6 +598,8 @@ server <- function(input, output, session) {
   
   #####
   observeEvent(input$saveNewUser,{
+    # shinyjs::addClass(id = "UpdateAnimateSaveUser", class = "loading dots")
+    # shinyjs::disable("saveUser")
     newUser <- data.frame(matrix(ncol=length(credentials),nrow=1))
     colnames(newUser) <- colnames(credentials)
     newUser$username_id = input$usernameInput
@@ -599,15 +610,21 @@ server <- function(input, output, session) {
     }
     else{
       if(input$usernameInput != "" && input$pswInput != ""){
+        # filePath <- file.path(tempdir(),"users.csv")
+        # write.table(newUser,file=filePath,append = TRUE,sep=',',row.names = FALSE,col.names = FALSE)
+        # drop_upload(filePath,inputDir)
         credentials <<- rbind(credentials,newUser)
         rv$cred <<- rv$cred + 1
         shinyalert(title="Nuevo usuario creado",type="success")
+        #updateTabItems(session, inputId = "tabsAdmin", selected = "users") 
       }
       else
       {
         shinyalert(title="Faltan datos, no se puede crear el usuario",type="error")
       }
     }
+    # shinyjs::enable("saveUser")
+    # shinyjs::removeClass(id = "UpdateAnimateSaveUser", class = "loading dots")
   })
   
   observeEvent(input$changeTypeUser,{
@@ -620,8 +637,7 @@ server <- function(input, output, session) {
       # filePath <- file.path(tempdir(),"users.csv")
       # write.table(credentials,file=filePath,append = FALSE,sep=',',col.names = TRUE, row.names = FALSE)
       # drop_upload(filePath,inputDir,mode = "overwrite")
-      shinyalert(title="El tipo de usuario guardados", 
-                 text="El usuario deberá salir de la sesión para que los cambios se actualicen",type="success")
+      shinyalert(title="Cambios sobre el usuario guardados",type="success")
     }
     else{
       shinyalert(title="Introduzca un tipo de usuario diferente para continuar",type="error")
