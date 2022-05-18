@@ -18,28 +18,10 @@ library(rdrop2)
 ########
 server <- function(input, output, session) {
 
-  rv <<- reactiveValues(cred=0, confInit = 0, confS=0, confAg=0, confArt=0, confSum=0)
+  rv <<- reactiveValues(cred=0, confS=0, confAg=0, confArt=0, confSum=0)
   
   # observe({
   #   rdrop2::drop_auth()
-  # })
-
-  # init <- reactive({
-  #   rv$confInit
-  #   conf$init
-  # })
-  
-  # observe({
-  #   rv$confInit
-  #   req(init())
-  #   if(is.na(init()) || (init() == 0)){
-  #     print("Init == NA"  )
-  #     click("stopValid")
-  #   }
-  #   else{
-  #     print("Init == 1")
-  #     click("startValid")
-  #   }
   # })
   
   numArticles <<- reactive({
@@ -351,16 +333,16 @@ server <- function(input, output, session) {
                                                       selected = conf$init))),
                     conditionalPanel(
                     condition = "input.stateValid == 1",
-                      box(title="Parar Validación", width = 6, solidHeader = TRUE,status = "primary",
+                      box(title="Parar Validación", width = 4, solidHeader = TRUE,status = "primary",
                           actionButton("stopValid", label = "Parar",class="btn-danger" )),
                     ),
                     conditionalPanel(
                       condition = "input.stateValid == 0",
-                      box(title="Iniciar Validación", width = 6, solidHeader = TRUE,status = "primary",
+                      box(title="Iniciar Validación", width = 4, solidHeader = TRUE,status = "primary",
                           actionButton("startValid", label = "Iniciar",class="btn-success" )),
                     ),
                   ), #fluidRow buttons
-                  #fluidRow(
+                  fluidRow(
                     box(title="Configuración", width = 12, solidHeader = TRUE,status = "primary",
                         tabsetPanel(type="tabs",
                                     tabPanel("Muestra",
@@ -417,7 +399,7 @@ server <- function(input, output, session) {
                                     )#tabPanel
                         )#tabsetpanel
                     ),#outer box conf
-                  #) #fluidRow config
+                  ) #fluidRow config
           ),#tabItem manageEvalSummaries
           tabItem(tabName ="dashboadEvalSummaries",
                   fluidRow(
@@ -568,7 +550,6 @@ server <- function(input, output, session) {
   
   observeEvent(input$startValid,{
     #crear tablas base: agreem, user validations, muestra articulos a validar, deshabilitar botones conf
-    rv$confInit <<-  rv$confInit +1
     conf$init <<- 1
     shinyjs::disable("saveNewSumFile")
     shinyjs::disable("saveNewArtFile")
@@ -583,7 +564,6 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$stopValid,{
-    rv$confInit <<-  rv$confInit +1
     conf$init <<- 0
     updateRadioButtons(session,"stateValid",
                        choices=list("Yes" = 1, "No" = 0),
