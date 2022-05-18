@@ -168,7 +168,13 @@ server <- function(input, output, session) {
   
   observeEvent(input$login,{
   if (USER$login == TRUE) {
-    # if(typeUser() == "expert"){
+     if(typeUser() == "expert"){
+       if(conf$init == 0){
+         shinyalert(title="No hay resúmenes para validar. Salga de la aplicación.", 
+                    closeOnClickOutside = TRUE, 
+                    type="warning")
+       }
+       
     # 
     #   #EXPERT_VALIDATION$df <- loadCSV(outputDir,FILENAMEEV$name)
     # 
@@ -192,8 +198,8 @@ server <- function(input, output, session) {
     #   else{
     #     TITLES$userTitles <- sample(ARTICLES$df$title)
     #   }
-    # }
-    # else{#user admin
+     }
+     else{#user admin
       if(is.null(articles)){
         message("El fichero con los artículos cuyos resúmenes hay que validar no se ha cargado.")
       }
@@ -210,7 +216,7 @@ server <- function(input, output, session) {
           # if(AGREEM$n == 1){
           #   dfa <- AGREEMENTS$table %>%  select(position,agreemPerc,agreedAnswer)
           #   ADMIN_ARTICLES$df <- adminArticles %>% left_join(dfa,by="position")
-          # }
+          }
         }
       }
     # } #end if user admin
