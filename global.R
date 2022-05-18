@@ -7,7 +7,7 @@ token<-drop_auth()
 saveRDS(token, "droptoken.rds")
 # 
 # #Dropbox auth
-# token <- readRDS("droptoken.rds")
+token <- readRDS("droptoken.rds")
 
 # dropbox_endpoint <- httr::oauth_endpoint(authorize = "https://www.dropbox.com/oauth2/authorize",
 #                                          access = "https://api.dropbox.com/oauth2/token")
@@ -48,8 +48,8 @@ conf <- loadCSV(paste0(inputDir,"conf.csv"))
 credentials <- loadCSV(paste0(inputDir,"users.csv"))
 
 if( !is.null(conf)){
-  articles <- loadCSV(paste0(inputDir,conf$fileArticles))
-  summaries <- loadCSV(paste0(inputDir,conf$fileSummaries)) 
+  articles <- loadCSV(paste0(inputDir,conf$fileArticles[nrow(conf)]))
+  summaries <- loadCSV(paste0(inputDir,conf$fileSummaries[nrow(conf)])) 
 }else{
   shinyalert(title="Salta de la aplicación", text="Se necesita el fichero de configuración para continuar",
              closeOnClickOutside = TRUE, type="error")

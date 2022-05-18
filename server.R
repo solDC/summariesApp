@@ -35,7 +35,7 @@ server <- function(input, output, session) {
     rv$confS
     
     message(" calcula sample size")
-    round(conf$sampleSize*numArticles()/100,0)
+    round(conf$sampleSize[nrow(conf)]*numArticles()/100,0)
   })
   
   samplePositions <<- reactive({
@@ -330,7 +330,7 @@ server <- function(input, output, session) {
                                      box(width = 6,title = "Estado Validación",
                                          radioButtons("stateValid",label="NO MODIFICAR",
                                                       choices=list("Iniciado" = 1, "No iniciado" = 0),
-                                                      selected = conf$init))),
+                                                      selected = conf$init[nrow(conf)]))),
                     conditionalPanel(
                     condition = "input.stateValid == 1",
                       box(title="Parar Validación", width = 4, solidHeader = TRUE,status = "primary",
@@ -354,7 +354,7 @@ server <- function(input, output, session) {
                                                        strong("Tamaño actual de la muestra (nº): "), verbatimTextOutput("numberCurrentSampleRows")),
                                                    box(width=6,
                                                        numericInput("sample",label='Seleccione el tamaño de la muestra a validar [en %]',
-                                                                    min=1, max=100, value=conf$sampleSize),
+                                                                    min=1, max=100, value=conf$sampleSize[nrow(conf)]),
                                                        p("El tamaño de la muestra sería (nº): "), verbatimTextOutput("numberRowsSample"),
                                                        actionButton('saveSampleSize',label="Guardar",class="btn-primary"))
                                                    ))
@@ -365,11 +365,11 @@ server <- function(input, output, session) {
                                                    box(title="Número mínimo de validaciones por resumen", width = 6,
                                                        strong("Mínimo número actual de validaciones por resumen: "), verbatimTextOutput("minValid"),
                                                        sliderInput("minValid",label='Seleccione el número mínimo de validaciones por resumen:',
-                                                                   min=3, max=10, value = conf$minNumValid)),
+                                                                   min=3, max=10, value = conf$minNumValid[nrow(conf)])),
                                                    box(title="Mínimo % de nivel de acuerdo por resumen", width = 6,
                                                        strong("Mínimo % actual de acuerdo por resumen: "), verbatimTextOutput("minAgreem"),
                                                        sliderInput("minAgreem",label='Seleccione el tamaño de la muestra a validar [en %]',
-                                                                   min=0, max=100, value = conf$minLevelAgreem)),
+                                                                   min=0, max=100, value = conf$minLevelAgreem[nrow(conf)])),
                                                    box(width = 12,
                                                        actionButton('saveParamAgreem',label="Guardar",class="btn-primary"))
                                               ))#outer box and fluidrow
@@ -511,7 +511,7 @@ server <- function(input, output, session) {
   output$currentSampleSize <- renderPrint({
     rv$confS
     message("Actualiza current sample size perc ")
-    conf$sampleSize
+    conf$sampleSize[nrow(conf)]
   })
   
   output$numberCurrentSampleRows <- renderPrint({
@@ -527,117 +527,140 @@ server <- function(input, output, session) {
   output$minValid <- renderPrint({
     rv$confAg
     message("Actualiza min Valid")
-    conf$minNumValid
+    conf$minNumValid[nrow(conf)]
   })
   
   output$minAgreem <- renderPrint({
     rv$confAg
     message("Actualiza min Agreem")
-    conf$minLevelAgreem
+    conf$minLevelAgreem[nrow(conf)]
   })
   
   output$currentSummariesFile <- renderPrint({
     rv$confSum
     message("Actualiza current SummariesFile")
-    conf$fileSummaries
+    conf$fileSummaries[nrow(conf)]
   })
   
   output$currentArticlesFile <- renderPrint({
     rv$confArt
     message("Actualiza currentArticlesFile")
-    conf$fileArticles
+    conf$fileArticles[nrow(conf)]
   })
   
   observeEvent(input$startValid,{
     #crear tablas base: agreem, user validations, muestra articulos a validar, deshabilitar botones conf
-    conf$init <<- 1
+    conf$init[nrow(conf)] <<- 1
+    updateRadioButtons(session,"stateValid",
+                       choices=list("Yes" = 1, "No" = 0),
+                       selected = 1)
     shinyjs::disable("saveNewSumFile")
     shinyjs::disable("saveNewArtFile")
     shinyjs::disable("saveParamAgreem")
     shinyjs::disable("saveSampleSize")
     shinyjs::disable("startValid")
     shinyjs::enable("stopValid")
-    print("asigna 1 a conf$init - iniciado")
-    updateRadioButtons(session,"stateValid",
-                       choices=list("Yes" = 1, "No" = 0),
-                       selected = conf$init)
   })
 
   observeEvent(input$stopValid,{
-    conf$init <<- 0
     updateRadioButtons(session,"stateValid",
                        choices=list("Yes" = 1, "No" = 0),
-                       selected = conf$init)
-    print(conf$init)
-    print("asigna 0 a conf$init - no iniciado")
+                       selected = 0)
     shinyjs::disable("stopValid")
     shinyjs::enable("startValid")
     shinyjs::enable("saveNewSumFile")
     shinyjs::enable("saveNewArtFile")
     shinyjs::enable("saveParamAgreem")
     shinyjs::enable("saveSampleSize")
-
+    nrowC <- nrow(conf)
+    newConf <- conf[nrowC,]
+    newConf$id <- conf$id[nrowC]+1
+    newConf$init <- 0
+    conf <<- rbind(conf,newConf)
   })
   
   #####
   observeEvent(input$saveSampleSize,{
-    print("Se va a cambiar el tamaño de la muestra en conf")
-    conf$sampleSize <<- input$sample
-    rv$confS <<- rv$confS + 1
-    print(rv$confS)
-    shinyalert(title="Tamaño de la muestra modificado", closeOnClickOutside = TRUE, type="success")
+    if(conf$init[nrow(conf)]==0){
+      print("Se va a cambiar el tamaño de la muestra en conf")
+      conf$sampleSize[nrow(conf)] <<- input$sample
+      rv$confS <<- rv$confS + 1
+      shinyalert(title="Tamaño de la muestra modificado", closeOnClickOutside = TRUE, type="success")
+    }
+    else{
+      shinyalert(title="No se pueden realizar modificaciones en el experimento mientras está activo", 
+                 closeOnClickOutside = TRUE, type="error")
+    }
   })
   
   #####
   observeEvent(input$saveParamAgreem,{
-    print("Se van a cambiar los parametros de configuracion para calcular el acuerdo")
-    conf$minNumValid <<- input$minValid
-    conf$minLevelAgreem <<- input$minAgreem
-    rv$confAg <<- rv$confAg + 1
-    print(rv$confAg)
-    shinyalert(title="Cambios guardados", closeOnClickOutside = TRUE, type="success")
+    if(conf$init[nrow(conf)]==0){
+      print("Se van a cambiar los parametros de configuracion para calcular el acuerdo")
+      conf$minNumValid[nrow(conf)] <<- input$minValid
+      conf$minLevelAgreem[nrow(conf)] <<- input$minAgreem
+      rv$confAg <<- rv$confAg + 1
+      print(rv$confAg)
+      shinyalert(title="Cambios guardados", closeOnClickOutside = TRUE, type="success")
+    }
+    else{
+      shinyalert(title="No se pueden realizar modificaciones en el experimento mientras está activo", 
+                 closeOnClickOutside = TRUE, type="error")
+    }
   })
   
   #####
   observeEvent(input$saveNewArtFile,{
-    print("Se va a cambiar el fichero de artículos a validar")
-    if(!is.null(input$newArticlesFile) && input$newArticlesFile$type == "text/csv"){
-      dir.create("tempdir")
-      file.copy(input$newArticlesFile$datapath, file.path("tempdir",input$newArticlesFile$name))
-      drop_upload(paste0("tempdir/",input$newArticlesFile$name),inputDir, mode = "overwrite")
-      conf$fileArticles <<- input$newArticlesFile$name
-      print(conf$fileArticles)
-      articles <<- loadCSV(paste0(inputDir,conf$fileArticles))
-      rv$confArt <<- rv$confArt + 1
-      print(rv$confArt)
-      shinyalert(title="Nuevo fichero de artículos almacenado", closeOnClickOutside = TRUE, type="success")
+    if(conf$init[nrow(conf)]==0){
+      print("Se va a cambiar el fichero de artículos a validar")
+      if(!is.null(input$newArticlesFile) && input$newArticlesFile$type == "text/csv"){
+        dir.create("tempdir")
+        file.copy(input$newArticlesFile$datapath, file.path("tempdir",input$newArticlesFile$name))
+        drop_upload(paste0("tempdir/",input$newArticlesFile$name),inputDir, mode = "overwrite")
+        conf$fileArticles[nrow(conf)] <<- input$newArticlesFile$name
+        print(conf$fileArticles[nrow(conf)])
+        articles <<- loadCSV(paste0(inputDir,conf$fileArticles[nrow(conf)]))
+        rv$confArt <<- rv$confArt + 1
+        print(rv$confArt)
+        shinyalert(title="Nuevo fichero de artículos almacenado", closeOnClickOutside = TRUE, type="success")
+      }
+      else{
+        msg <- paste0("No se puede cargar el fichero ",conf$fileArticles[nrow(conf)])
+        shinyalert(title=msg,type="warning")
+        message(msg)
+      }
     }
     else{
-      msg <- paste0("No se puede cargar el fichero ",conf$fileArticles," porque no es de tipo csv")
-      shinyalert(title=msg,type="warning")
-      message(msg)
+      shinyalert(title="No se pueden realizar modificaciones en el experimento mientras está activo", 
+                 closeOnClickOutside = TRUE, type="error")
     }
   })
   
   #####
   observeEvent(input$saveNewSumFile,{
-    print("Se va a cambiar el fichero de resúmenes a validar")
-    if(!is.null(input$newSummariesFile) && input$newSummariesFile$type == "text/csv"){
-      dir.create("tempdir")
-      file.copy(input$newSummariesFile$datapath, file.path("tempdir",input$newSummariesFile$name))
-      drop_upload(paste0("tempdir/",input$newSummariesFile$name),inputDir, mode = "overwrite")
-      conf$fileSummaries <<- input$newSummariesFile$name
-      print(conf$fileSummaries)
-      summaries <<- loadCSV(paste0(inputDir,conf$fileSummaries))
-      print(head(summaries))
-      rv$confSum <<- rv$confSum + 1
-      print(rv$confSum)
-      shinyalert(title="Nuevo fichero de resúmenes almacenado", closeOnClickOutside = TRUE, type="success")
+    if(conf$init[nrow(conf)]==0){
+      print("Se va a cambiar el fichero de resúmenes a validar")
+      if(!is.null(input$newSummariesFile) && input$newSummariesFile$type == "text/csv"){
+        dir.create("tempdir")
+        file.copy(input$newSummariesFile$datapath, file.path("tempdir",input$newSummariesFile$name))
+        drop_upload(paste0("tempdir/",input$newSummariesFile$name),inputDir, mode = "overwrite")
+        conf$fileSummaries[nrow(conf)] <<- input$newSummariesFile$name
+        print(conf$fileSummaries[nrow(conf)])
+        summaries <<- loadCSV(paste0(inputDir,conf$fileSummaries[nrow(conf)]))
+        print(head(summaries))
+        rv$confSum <<- rv$confSum + 1
+        print(rv$confSum)
+        shinyalert(title="Nuevo fichero de resúmenes almacenado", closeOnClickOutside = TRUE, type="success")
+      }
+      else{
+        msg <- paste0("No se puede cargar el fichero ",conf$fileSummaries [nrow(conf)])
+        shinyalert(title=msg,type="warning")
+        message(msg)
+      }
     }
     else{
-      msg <- paste0("No se puede cargar el fichero ",conf$fileSummaries ," porque no es de tipo csv")
-      shinyalert(title=msg,type="warning")
-      message(msg)
+      shinyalert(title="No se pueden realizar modificaciones en el experimento mientras está activo", 
+                 closeOnClickOutside = TRUE, type="error")
     }
   })
   
