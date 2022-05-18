@@ -2,7 +2,6 @@ library(shiny)
 library(shinyauthr)
 library(shinydashboard)
 library(shinyjs)
-library(sodium) #encrypt passwords
 library(tidyverse)
 library(dplyr)
 library(tidyr)
@@ -19,19 +18,30 @@ library(rdrop2)
 ########
 server <- function(input, output, session) {
 
-  rv <<- reactiveValues(cred=0, conf = 0, confS=0, confAg=0, confArt=0, confSum=0)
+  rv <<- reactiveValues(cred=0, confInit = 0, confS=0, confAg=0, confArt=0, confSum=0)
   
-  observe({
-    
-    if(is.na(conf$init)){
-      print("Init == NA")
-      click("stopValid")
-    }
-    else{
-      print("Init == 1")
-      click("startValid")       
-    }
-  })
+  # observe({
+  #   rdrop2::drop_auth()
+  # })
+
+  # init <- reactive({
+  #   rv$confInit
+  #   conf$init
+  # })
+  
+  # observe({
+  #   rv$confInit
+  #   req(init())
+  #   if(is.na(init()) || (init() == 0)){
+  #     print("Init == NA"  )
+  #     click("stopValid")
+  #   }
+  #   else{
+  #     print("Init == 1")
+  #     click("startValid")
+  #   }
+  # })
+  
   numArticles <<- reactive({
     rv$confArt
     message(" calcula numero de filas articulos")
@@ -81,6 +91,8 @@ server <- function(input, output, session) {
     summariesValidate
   })
   
+  
+  
   #LOGIN: SHOW APPROPIATE INTERFACE
   ######
   login <- FALSE
@@ -97,10 +109,14 @@ server <- function(input, output, session) {
           Password <- isolate(input$passwd)
           if(!is.null(credentials)){
             if(length(which(credentials$username_id==Username))==1) {
-              pasmatch  <- credentials["passod"][which(credentials$username_id==Username),]
-              pasverify <- password_verify(pasmatch, Password)
-              Password <- NULL # to avoid keeping the password available
-              if(pasverify) {
+              # pasmatch  <- credentials["passod"][which(credentials$username_id==Username),]
+              # pasverify <- password_verify(pasmatch, Password)
+              # Password <- NULL # to avoid keeping the password available
+              # if(pasverify) {
+              #   USER$login <- TRUE
+              #   USER$name <- Username
+              # }
+              if(credentials["passod"][which(credentials$username_id==Username),] == Password){
                 USER$login <- TRUE
                 USER$name <- Username
               }
@@ -108,7 +124,8 @@ server <- function(input, output, session) {
                 shinyjs::toggle(id = "no password match", anim = TRUE, time = 1, animType = "fade")
                 shinyjs::delay(3000, shinyjs::toggle(id = "nomatch", anim = TRUE, time = 1, animType = "fade"))
               }
-            }
+              Password <- NULL
+            } #if (length(which ....))
             else {
               shinyjs::toggle(id = "no username match", anim = TRUE, time = 1, animType = "fade")
               shinyjs::delay(3000, shinyjs::toggle(id = "nomatch", anim = TRUE, time = 1, animType = "fade"))
@@ -316,22 +333,33 @@ server <- function(input, output, session) {
           tabItem(tabName = "manageEvalSummaries", class = "active",
                   fluidRow(
                     box(title="Configuración del experimento de validación", width = 12, solidHeader = TRUE,status = "primary",
-                        p("En esta pestaña podrá", strong(" configurar experimento de validación de resúmenes "),"generados por un sistema
+                        p("En esta sección podrá", strong(" configurar experimento de validación de resúmenes "),"generados por un sistema
                         inteligente indicanco los ficheros de artículos y resúmenes a utilizar, el tamaño de muestra y 
                           los parámetros para el cálculo del nivel acuerdo."),
-                        # p("Una vez que la configuración sea la definitiva, ", strong("active el experimento con el botón <<Iniciar>> "), "de 
-                        # esta sección para que los expertos puedan realizar las validaciones. Se iniciarán todas las estructuras necesarias
-                        #   para llevar a cabo y almacenar los resultados de la validación. "),
-                        # p(strong("Para configurar un nuevo experimento, "),"deberá deshabilitar el experimento con el ",
-                        #   strong("botón <<Parar>>")," de esta sección. Se almacenarán en disco todas las estructuras creadas anteriormente."),
+                        p("Una vez que la configuración sea la definitiva, ", strong("active el experimento con el botón <<Iniciar>> "), "de
+                        esta sección para que los expertos puedan realizar las validaciones. Se iniciarán todas las estructuras necesarias
+                          para llevar a cabo y almacenar los resultados de la validación. "),
+                        p(strong("Para configurar un nuevo experimento, "),"deberá deshabilitar el experimento con el ",
+                          strong("botón <<Parar>>")," de esta sección. Se almacenarán en disco todas las estructuras creadas anteriormente."),
                         )),
-                  # fluidRow(
-                  #   useShinyjs(),
-                  #     box(title="Iniciar Validación", width = 6, solidHeader = TRUE,status = "primary",
-                  #         actionButton("startValid", label = "Iniciar",class="btn-success" )),
-                  #     box(title="Parar Validación", width = 6, solidHeader = TRUE,status = "primary",
-                  #         actionButton("stopValid", label = "Parar",class="btn-danger" )),
-                  # ), #fluidRow buttons
+                  fluidRow(
+                    useShinyjs(),
+                    conditionalPanel("false",
+                                     box(width = 6,title = "Estado Validación",
+                                         radioButtons("stateValid",label="NO MODIFICAR",
+                                                      choices=list("Iniciado" = 1, "No iniciado" = 0),
+                                                      selected = conf$init))),
+                    conditionalPanel(
+                    condition = "input.stateValid == 1",
+                      box(title="Parar Validación", width = 6, solidHeader = TRUE,status = "primary",
+                          actionButton("stopValid", label = "Parar",class="btn-danger" )),
+                    ),
+                    conditionalPanel(
+                      condition = "input.stateValid == 0",
+                      box(title="Iniciar Validación", width = 6, solidHeader = TRUE,status = "primary",
+                          actionButton("startValid", label = "Iniciar",class="btn-success" )),
+                    ),
+                  ), #fluidRow buttons
                 fluidRow(
                   box(title="Configuración", width = 12, solidHeader = TRUE,status = "primary",
                   fluidRow(
@@ -364,11 +392,6 @@ server <- function(input, output, session) {
                         box(title="Fichero de artículos a validar", width = 6,
                             strong("Nombre del fichero actual:"),
                             verbatimTextOutput("currentArticlesFile"),
-                            # radioButtons("changeArticlesFile",label="Desea cambiar el fichero de artículos a validar ",
-                            #              choices=list("Yes" = 1, "No" = 2),
-                            #              selected = 2),
-                            # conditionalPanel(
-                            #   condition = "input.changeArticlesFile == 1",
                             fileInput("newArticlesFile",label="Subir el nuevo fichero con los resúmenes a validar (solo csv)",
                                         multiple = FALSE, accept = ".csv"),
                             actionButton('saveNewArtFile',label="Guardar",class="btn-primary")
@@ -537,30 +560,38 @@ server <- function(input, output, session) {
     conf$fileArticles
   })
   
-  # observeEvent(input$startValid,{
-  #   #crear tablas base: agreem, user validations, muestra articulos a validar, deshabilitar botones conf
-  #   conf$init <<- 1
-  #   shinyjs::disable("saveNewSumFile")
-  #   shinyjs::disable("saveNewArtFile")
-  #   shinyjs::disable("saveParamAgreem")
-  #   shinyjs::disable("saveSampleSize")
-  #   shinyjs::disable("startValid")
-  #   shinyjs::enable("stopValid")
-  #   print("asigna 1 a conf$init - iniciado")
-  # })  
-  # 
-  # observeEvent(input$stopValid,{
-  #   conf$init <<- 0
-  #   print(conf$init)
-  #   print("asigna 0 a conf$init - no iniciado")
-  #   shinyjs::disable("stopValid")
-  #   shinyjs::enable("startValid")
-  #   shinyjs::enable("saveNewSumFile")
-  #   shinyjs::enable("saveNewArtFile")
-  #   shinyjs::enable("saveParamAgreem")
-  #   shinyjs::enable("saveSampleSize")
-  # 
-  # }) 
+  observeEvent(input$startValid,{
+    #crear tablas base: agreem, user validations, muestra articulos a validar, deshabilitar botones conf
+    rv$confInit <<-  rv$confInit +1
+    conf$init <<- 1
+    shinyjs::disable("saveNewSumFile")
+    shinyjs::disable("saveNewArtFile")
+    shinyjs::disable("saveParamAgreem")
+    shinyjs::disable("saveSampleSize")
+    shinyjs::disable("startValid")
+    shinyjs::enable("stopValid")
+    print("asigna 1 a conf$init - iniciado")
+    updateRadioButtons(session,"stateValid",
+                       choices=list("Yes" = 1, "No" = 0),
+                       selected = conf$init)
+  })
+
+  observeEvent(input$stopValid,{
+    rv$confInit <<-  rv$confInit +1
+    conf$init <<- 0
+    updateRadioButtons(session,"stateValid",
+                       choices=list("Yes" = 1, "No" = 0),
+                       selected = conf$init)
+    print(conf$init)
+    print("asigna 0 a conf$init - no iniciado")
+    shinyjs::disable("stopValid")
+    shinyjs::enable("startValid")
+    shinyjs::enable("saveNewSumFile")
+    shinyjs::enable("saveNewArtFile")
+    shinyjs::enable("saveParamAgreem")
+    shinyjs::enable("saveSampleSize")
+
+  })
   
   #####
   observeEvent(input$saveSampleSize,{
@@ -636,9 +667,9 @@ server <- function(input, output, session) {
   observeEvent(input$saveNewUser,{
     newUser <- data.frame(matrix(ncol=length(credentials),nrow=1))
     colnames(newUser) <- colnames(credentials)
-    newUser$username_id = input$usernameInput
-    newUser$passod = sapply(input$pswInput, sodium::password_store)
-    newUser$permission = input$typeUserInput
+    newUser$username_id <- input$usernameInput
+    newUser$passod <- input$pswInput #sapply(input$pswInput, sodium::password_store)
+    newUser$permission <- input$typeUserInput
     if(input$usernameInput %in% credentials$username_id){
       shinyalert(title="Nombre de usuario repetido, elija otro",type="error")
     }
@@ -676,7 +707,7 @@ server <- function(input, output, session) {
   observeEvent(input$changePswUser,{
     if(input$pswInputChg != ""){
       print("entro a if psw")
-      credentials["passod"][which(credentials$username_id==input$usernameInputChgPsw),] <<- sapply(input$pswInputChg, sodium::password_store)
+      credentials["passod"][which(credentials$username_id==input$usernameInputChgPsw),] <<- input$pswInputChg #sapply(input$pswInputChg, sodium::password_store)
       rv$cred <<- rv$cred + 1
       # filePath <- file.path(tempdir(),"users.csv")
       # write.table(credentials,file=filePath,append = FALSE,sep=',',col.names = TRUE, row.names = FALSE)

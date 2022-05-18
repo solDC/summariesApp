@@ -5,9 +5,9 @@ account: soldc
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 5979963
-bundleId: 5906145
+bundleId: 5916360
 url: https://soldc.shinyapps.io/summariesApp/
-when: 1652536648.87586
-lastSyncTime: 1652536648.87587
+when: 1652817660.86135
+lastSyncTime: 1652817660.86136
 asMultiple: FALSE
 asStatic: FALSE

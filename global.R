@@ -1,11 +1,23 @@
 library(shiny)
 library(rdrop2)
+library(httpuv)
 
 # Done once to create Dropbox authentification tokens
 token<-drop_auth()
 saveRDS(token, "droptoken.rds")
+# 
+# #Dropbox auth
+# token <- readRDS("droptoken.rds")
 
-#Dropbox auth
+# dropbox_endpoint <- httr::oauth_endpoint(authorize = "https://www.dropbox.com/oauth2/authorize",
+#                                          access = "https://api.dropbox.com/oauth2/token")
+# 
+# dropbox_app <- httr::oauth_app(appname="summariesApp", key = "ao4u5xpe7wtfg2k",
+#                                secret = "z760md21t5v78xi")#, redirect_uri = "https://soldc.shinyapps.io/summariesApp/")
+# dropbox_token <- httr::oauth2.0_token(endpoint=dropbox_endpoint, app=dropbox_app,
+#                                       cache = TRUE,
+#                                       query_authorize_extra = list(token_access_type = "offline"))
+
 token <- readRDS("droptoken.rds")
 
 # Set Dropbox directories
@@ -37,7 +49,7 @@ credentials <- loadCSV(paste0(inputDir,"users.csv"))
 
 if( !is.null(conf)){
   articles <- loadCSV(paste0(inputDir,conf$fileArticles))
-  sum <- loadCSV(paste0(inputDir,conf$fileSummaries)) 
+  summaries <- loadCSV(paste0(inputDir,conf$fileSummaries)) 
 }else{
   shinyalert(title="Salta de la aplicación", text="Se necesita el fichero de configuración para continuar",
              closeOnClickOutside = TRUE, type="error")
