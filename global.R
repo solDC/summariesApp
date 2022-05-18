@@ -1,13 +1,14 @@
 library(shiny)
-library(rdrop2)
-library(httpuv)
+library(readr)
+# library(rdrop2)
+# library(httpuv)
 
 # Done once to create Dropbox authentification tokens
-token<-drop_auth()
-saveRDS(token, "droptoken.rds")
-# 
-# #Dropbox auth
-token <- readRDS("droptoken.rds")
+# token<-drop_auth()
+# saveRDS(token, "droptoken.rds")
+# # 
+# # #Dropbox auth
+# token <- readRDS("droptoken.rds")
 
 # dropbox_endpoint <- httr::oauth_endpoint(authorize = "https://www.dropbox.com/oauth2/authorize",
 #                                          access = "https://api.dropbox.com/oauth2/token")
@@ -18,11 +19,15 @@ token <- readRDS("droptoken.rds")
 #                                       cache = TRUE,
 #                                       query_authorize_extra = list(token_access_type = "offline"))
 
-token <- readRDS("droptoken.rds")
+# token <- readRDS("droptoken.rds")
 
-# Set Dropbox directories
-outputDir <- "summariesApp/responses/"
-inputDir <- "summariesApp/data/"
+# # Set Dropbox directories
+# outputDir <- "summariesApp/responses/"
+# inputDir <- "summariesApp/data/"
+
+# Set RStudio Connect directories
+outputDir <- "./data/outputs/"
+inputDir <- "./data/inputs/"
 
 set.seed(123)
 
@@ -30,7 +35,8 @@ set.seed(123)
 loadCSV <- function(filePath){
   f <- tryCatch({
     # WARNING: next line needs to be the last one so the return value is the uploaded file
-    drop_read_csv(file=filePath,dest = tempdir(),dtoken=token)
+    #drop_read_csv(file=filePath,dest = tempdir(),dtoken=token)
+    read.csv(filePath,stringsAsFactors = FALSE)
   },
   error = function(e){
     msg <- paste0("Error: no se ha podido leer el fichero ",filePath)
@@ -58,13 +64,15 @@ if( !is.null(conf)){
 
 onStop(function(){
   # Save credentials 
-  filePathCd <- file.path(tempdir(),"users.csv")
-  write.table(credentials,file=filePathCd,append = FALSE,sep=',',col.names = TRUE, row.names = FALSE)
-  drop_upload(filePathCd,inputDir,mode = "overwrite")
+  filePathCd <- file.path(inputDir,"users.csv")
+  # write.table(credentials,file=filePathCd,append = FALSE,sep=',',col.names = TRUE, row.names = FALSE)
+  # drop_upload(filePathCd,inputDir,mode = "overwrite")
+  write.csv(credentials,file=filePathCd,row.names = FALSE)#, row.names = FALSE)
   # Save conf
-  filePathCf <- file.path(tempdir(),"conf.csv")
-  write.table(conf,file=filePathCf,append = FALSE,sep=',',row.names = FALSE) 
-  drop_upload(filePathCf,inputDir)
+  filePathCf <- file.path(inputDir,"conf.csv")
+  # write.table(conf,file=filePathCf,append = FALSE,sep=',',row.names = FALSE) 
+  # drop_upload(filePathCf,inputDir)
+  write.csv(x=conf,file=filePathCf,row.names = FALSE)
 })
 
 

@@ -1,5 +1,4 @@
 library(shiny)
-library(shinyauthr)
 library(shinydashboard)
 library(shinyjs)
 library(tidyverse)
@@ -19,11 +18,7 @@ library(rdrop2)
 server <- function(input, output, session) {
 
   rv <<- reactiveValues(cred=0, confS=0, confAg=0, confArt=0, confSum=0)
-  
-  # observe({
-  #   rdrop2::drop_auth()
-  # })
-  
+ 
   numArticles <<- reactive({
     rv$confArt
     message(" calcula numero de filas articulos")
@@ -169,7 +164,7 @@ server <- function(input, output, session) {
   observeEvent(input$login,{
   if (USER$login == TRUE) {
      if(typeUser() == "expert"){
-       if(conf$init == 0){
+       if(conf$init == 0){ #AÑADIR CONDICION DE SI LA LISTA DEL USER EXPERT ESTÁ VACÍA
          shinyalert(title="No hay resúmenes para validar. Salga de la aplicación.", 
                     closeOnClickOutside = TRUE, 
                     type="warning")
@@ -327,8 +322,8 @@ server <- function(input, output, session) {
                         p("Una vez que la configuración sea la definitiva, ", strong("active el experimento con el botón <<Iniciar>> "), "de
                         esta sección para que los expertos puedan realizar las validaciones. Se iniciarán todas las estructuras necesarias
                           para llevar a cabo y almacenar los resultados de la validación. "),
-                        p(strong("Para configurar un nuevo experimento, "),"deberá deshabilitar el experimento con el ",
-                          strong("botón <<Parar>>")," de esta sección. Se almacenarán en disco todas las estructuras creadas anteriormente."),
+                        p(strong("Para configurar un nuevo experimento, "),"deberá deshabilitar el experimento en marcha con el ",
+                          strong("botón <<Parar>>")," que aparecerá cuando inicie un experimento."),
                         )),
                   fluidRow(
                     useShinyjs(),
@@ -620,9 +615,10 @@ server <- function(input, output, session) {
     if(conf$init[nrow(conf)]==0){
       print("Se va a cambiar el fichero de artículos a validar")
       if(!is.null(input$newArticlesFile) && input$newArticlesFile$type == "text/csv"){
-        dir.create("tempdir")
-        file.copy(input$newArticlesFile$datapath, file.path("tempdir",input$newArticlesFile$name))
-        drop_upload(paste0("tempdir/",input$newArticlesFile$name),inputDir, mode = "overwrite")
+        # dir.create("tempdir")
+        # file.copy(input$newArticlesFile$datapath, file.path("tempdir",input$newArticlesFile$name))
+        # drop_upload(paste0("tempdir/",input$newArticlesFile$name),inputDir, mode = "overwrite")
+        file.copy(input$newArticlesFile$datapath, paste0(inputDir,input$newArticlesFile$name))
         conf$fileArticles[nrow(conf)] <<- input$newArticlesFile$name
         print(conf$fileArticles[nrow(conf)])
         articles <<- loadCSV(paste0(inputDir,conf$fileArticles[nrow(conf)]))
@@ -647,9 +643,12 @@ server <- function(input, output, session) {
     if(conf$init[nrow(conf)]==0){
       print("Se va a cambiar el fichero de resúmenes a validar")
       if(!is.null(input$newSummariesFile) && input$newSummariesFile$type == "text/csv"){
-        dir.create("tempdir")
-        file.copy(input$newSummariesFile$datapath, file.path("tempdir",input$newSummariesFile$name))
-        drop_upload(paste0("tempdir/",input$newSummariesFile$name),inputDir, mode = "overwrite")
+        # dir.create("tempdir")
+        # file.copy(input$newSummariesFile$datapath, file.path("tempdir",input$newSummariesFile$name))
+        print(input$newSummariesFile$datapath)
+        print(paste0(inputDir,input$newSummariesFile$name))
+        file.copy(input$newSummariesFile$datapath, paste0(inputDir,input$newSummariesFile$name))
+        #drop_upload(paste0("tempdir/",input$newSummariesFile$name),inputDir, mode = "overwrite")
         conf$fileSummaries[nrow(conf)] <<- input$newSummariesFile$name
         print(conf$fileSummaries[nrow(conf)])
         summaries <<- loadCSV(paste0(inputDir,conf$fileSummaries[nrow(conf)]))
@@ -739,9 +738,10 @@ server <- function(input, output, session) {
   observeEvent(input$saveImage,{
     shinyjs::addClass(id = "UpdateAnimateSaveImage", class = "loading dots")
     shinyjs::disable("saveImage")
-    fn <- file.path(tempdir(),paste0("summariesAppWorkspace-",Sys.Date(),".RData"))
-    save.image(file = fn)
-    drop_upload(fn,inputDir,mode = "overwrite")
+    # fn <- file.path(tempdir(),paste0("summariesAppWorkspace-",Sys.Date(),".RData"))
+    # save.image(file = fn)
+    # drop_upload(fn,inputDir,mode = "overwrite")
+    save.image(paste0(inputDir,"summariesAppWorkspace-",Sys.Date(),".RData"))
     shinyalert(title="Imagen del workspace almacenada",type="success")
     shinyjs::enable("saveImage")
     shinyjs::removeClass(id = "UpdateAnimateSaveImage", class = "loading dots")
