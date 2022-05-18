@@ -360,58 +360,64 @@ server <- function(input, output, session) {
                           actionButton("startValid", label = "Iniciar",class="btn-success" )),
                     ),
                   ), #fluidRow buttons
-                fluidRow(
-                  box(title="Configuración", width = 12, solidHeader = TRUE,status = "primary",
-                  fluidRow(
-                    box(title="Tamaño de la muestra a validar", width = 12, solidHeader = TRUE,status = "primary",
-                        box(width=6,
-                            strong("Número total de artículos-resúmenes: "), verbatimTextOutput("numberRowsArticles"),
-                            strong("Tamaño actual de la muestra (en %):"), verbatimTextOutput("currentSampleSize"),
-                            strong("Tamaño actual de la muestra (nº): "), verbatimTextOutput("numberCurrentSampleRows")),
-                        box(width=6,
-                            numericInput("sample",label='Seleccione el tamaño de la muestra a validar [en %]',
-                                         min=1, max=100, value=conf$sampleSize),
-                            p("El tamaño de la muestra sería (nº): "), verbatimTextOutput("numberRowsSample"),
-                            actionButton('saveSampleSize',label="Guardar",class="btn-primary")
-                        ))),
-                  fluidRow(
-                    box(title="Número de validaciones y nivel de acuerdo mínimo por resumen", width = 12, solidHeader = TRUE,status = "primary",
-                        box(title="Número mínimo de validaciones por resumen", width = 6,
-                            strong("Mínimo número actual de validaciones por resumen: "), verbatimTextOutput("minValid"),
-                            sliderInput("minValid",label='Seleccione el número mínimo de validaciones por resumen:',
-                                        min=3, max=10, value = conf$minNumValid)),
-                        box(title="Mínimo % de nivel de acuerdo por resumen", width = 6,
-                            strong("Mínimo % actual de acuerdo por resumen: "), verbatimTextOutput("minAgreem"),
-                            sliderInput("minAgreem",label='Seleccione el tamaño de la muestra a validar [en %]',
-                                        min=0, max=100, value = conf$minLevelAgreem)),
-                        box(width = 12,
-                            actionButton('saveParamAgreem',label="Guardar",class="btn-primary")))
-                    ),
-                  fluidRow(
-                    box(width = 12, title = "Gestión de ficheros",solidHeader = TRUE,status = "primary",
-                        box(title="Fichero de artículos a validar", width = 6,
-                            strong("Nombre del fichero actual:"),
-                            verbatimTextOutput("currentArticlesFile"),
-                            fileInput("newArticlesFile",label="Subir el nuevo fichero con los resúmenes a validar (solo csv)",
-                                        multiple = FALSE, accept = ".csv"),
-                            actionButton('saveNewArtFile',label="Guardar",class="btn-primary")
-                            ),
-                        #),
-                        box(title="Fichero de resúmenes a validar", width = 6,
-                            strong("Nombre del fichero actual:"),
-                            verbatimTextOutput("currentSummariesFile"),
-                            # radioButtons("changeSummariesFile",label="Desea cambiar el fichero de resúmenes a validar ",
-                            #              choices=list("Yes" = 1, "No" = 2),
-                            #              selected = 2),
-                            # conditionalPanel(
-                              # condition = "input.changeSummariesFile == 1",
-                            fileInput("newSummariesFile",label="Subir el nuevo fichero con los resúmenes a validar (solo csv)",
-                                        multiple = FALSE, accept = ".csv"),
-                            actionButton('saveNewSumFile',label="Guardar",class="btn-primary")
-                            ),
-                        ),#outer box files
-                    )),#fluidRow and outer box conf
-          ) #fluidRow config
+                  #fluidRow(
+                    box(title="Configuración", width = 12, solidHeader = TRUE,status = "primary",
+                        tabsetPanel(type="tabs",
+                                    tabPanel("Muestra",
+                                             fluidRow(
+                                               box(title="Tamaño de la muestra a validar", width = 12, solidHeader = TRUE,status = "primary",
+                                                   box(width=6,
+                                                       strong("Número total de artículos-resúmenes: "), verbatimTextOutput("numberRowsArticles"),
+                                                       strong("Tamaño actual de la muestra (en %):"), verbatimTextOutput("currentSampleSize"),
+                                                       strong("Tamaño actual de la muestra (nº): "), verbatimTextOutput("numberCurrentSampleRows")),
+                                                   box(width=6,
+                                                       numericInput("sample",label='Seleccione el tamaño de la muestra a validar [en %]',
+                                                                    min=1, max=100, value=conf$sampleSize),
+                                                       p("El tamaño de la muestra sería (nº): "), verbatimTextOutput("numberRowsSample"),
+                                                       actionButton('saveSampleSize',label="Guardar",class="btn-primary"))
+                                                   ))
+                                             ),
+                                    tabPanel("Acuerdo",
+                                             fluidRow(
+                                               box(title="Número de validaciones y nivel de acuerdo mínimo por resumen", width = 12, solidHeader = TRUE,status = "primary",
+                                                   box(title="Número mínimo de validaciones por resumen", width = 6,
+                                                       strong("Mínimo número actual de validaciones por resumen: "), verbatimTextOutput("minValid"),
+                                                       sliderInput("minValid",label='Seleccione el número mínimo de validaciones por resumen:',
+                                                                   min=3, max=10, value = conf$minNumValid)),
+                                                   box(title="Mínimo % de nivel de acuerdo por resumen", width = 6,
+                                                       strong("Mínimo % actual de acuerdo por resumen: "), verbatimTextOutput("minAgreem"),
+                                                       sliderInput("minAgreem",label='Seleccione el tamaño de la muestra a validar [en %]',
+                                                                   min=0, max=100, value = conf$minLevelAgreem)),
+                                                   box(width = 12,
+                                                       actionButton('saveParamAgreem',label="Guardar",class="btn-primary"))
+                                              ))#outer box and fluidrow
+                                             ),
+                                    tabPanel("Ficheros",
+                                      fluidRow(
+                                               box(width = 12, title = "Gestión de ficheros",solidHeader = TRUE,status = "primary",
+                                                   box(title="Fichero de artículos a validar", width = 6,
+                                                       strong("Nombre del fichero actual:"),
+                                                       verbatimTextOutput("currentArticlesFile"),
+                                                       fileInput("newArticlesFile",label="Subir el nuevo fichero con los resúmenes a validar (solo csv)",
+                                                                 multiple = FALSE, accept = ".csv"),
+                                                       actionButton('saveNewArtFile',label="Guardar",class="btn-primary")),
+                                                   box(title="Fichero de resúmenes a validar", width = 6,
+                                                       strong("Nombre del fichero actual:"),
+                                                       verbatimTextOutput("currentSummariesFile"),
+                                                       # radioButtons("changeSummariesFile",label="Desea cambiar el fichero de resúmenes a validar ",
+                                                       #              choices=list("Yes" = 1, "No" = 2),
+                                                       #              selected = 2),
+                                                       # conditionalPanel(
+                                                       # condition = "input.changeSummariesFile == 1",
+                                                       fileInput("newSummariesFile",label="Subir el nuevo fichero con los resúmenes a validar (solo csv)",
+                                                                 multiple = FALSE, accept = ".csv"),
+                                                       actionButton('saveNewSumFile',label="Guardar",class="btn-primary"))
+                                                   ),#outer box files
+                                      ),#fluidRow
+                                    )#tabPanel
+                        )#tabsetpanel
+                    ),#outer box conf
+                  #) #fluidRow config
           ),#tabItem manageEvalSummaries
           tabItem(tabName ="dashboadEvalSummaries",
                   fluidRow(
