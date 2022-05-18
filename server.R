@@ -11,6 +11,35 @@ library(RColorBrewer)
 library(ggplot2)
 library(rdrop2)
 
+# Main login screen
+#####
+loginpage <- div(id = "loginpage", style = "width: 500px; max-width: 100%; margin: 0 auto; padding: 20px;",
+                 wellPanel(
+                   tags$h2("LOG IN", class = "text-center", style = "padding-top: 0;color:#333; font-weight:600;"),
+                   textInput("userName", placeholder="Username", label = tagList(icon("user"), "Username")),
+                   passwordInput("passwd", placeholder="Password", label = tagList(icon("unlock-alt"), "Password")),
+                   br(),
+                   div(
+                     style = "text-align: center;",
+                     actionButton("login", "SIGN IN", style = "color: white; background-color:#3c8dbc;
+                                 padding: 10px 15px; width: 150px; cursor: pointer;
+                                 font-size: 18px; font-weight: 600;"),#,icon=icon("far fa-sign-in",lib= "font-awesome")
+                     shinyjs::hidden(
+                       div(id = "nomatch",
+                           tags$p("Oops! Incorrect username or password!",
+                                  style = "color: red; font-weight: 600; 
+                                            padding-top: 5px;font-size:16px;", 
+                                  class = "text-center"))),
+                     br(),
+                     #a("Create new account"),
+                     br(),
+                     tags$code("Username: admin  Password: adminpass"),
+                     br(),
+                     tags$code("Username: user1  Password: pass1"),
+                     br(),
+                     tags$code("Username: user2  Password: pass2")
+                   ))
+)
 
 ########
 # SERVER
@@ -49,7 +78,7 @@ server <- function(input, output, session) {
     req(samplePositions())
     
     message("calcula articulos validar")
-    articlesValidate <- articles[samplePositions(),]
+    articlesValidate <- articles[samplePositions(),] #c("title","url","text")
     articlesValidate$position <- samplePositions()
     articlesValidate
   })
@@ -68,6 +97,12 @@ server <- function(input, output, session) {
     summariesValidate
   })
   
+  # numExperts <<- reactive({
+  #   rv$cred
+  #   
+  #   aux <- credentials %>% filter(permission == "expert")
+  #   nrow(aux)
+  # })
   
   
   #LOGIN: SHOW APPROPIATE INTERFACE
@@ -109,10 +144,8 @@ server <- function(input, output, session) {
             }
           }
           else{
-            shinyalert(title="Salga de la aplicación",
-                       text="No es posible realizar la autenticación
-                       (no se ha cargado el fichero credentials).",
-                       type="error")
+            shinyalert(title="Salga de la aplicación",text="No es posible realizar la autenticación (no se ha cargado el fichero credentials).",
+                       closeOnClickOutside = TRUE,type="error")
           } # end else if(!is.null(credentials))
         } # end if(input$login > 0)
       } # end if(!is.null(input$login))
@@ -165,9 +198,7 @@ server <- function(input, output, session) {
   if (USER$login == TRUE) {
      if(typeUser() == "expert"){
        if(conf$init == 0){ #AÑADIR CONDICION DE SI LA LISTA DEL USER EXPERT ESTÁ VACÍA
-         shinyalert(title="No hay resúmenes para validar. Salga de la aplicación.", 
-                    closeOnClickOutside = TRUE, 
-                    type="warning")
+         shinyalert(title="No hay resúmenes para validar. Salga de la aplicación.", closeOnClickOutside = TRUE, type="warning")
        }
        
     # 
@@ -550,7 +581,21 @@ server <- function(input, output, session) {
   })
   
   observeEvent(input$startValid,{
-    #crear tablas base: agreem, user validations, muestra articulos a validar, deshabilitar botones conf
+    # Create the table structure to calculate agreements
+    nameUsers <- credentials %>% filter(permission == "expert") %>%  select(username_id)
+    aux1 <- cbind(samplePositions(),data.frame(matrix(ncol=nrow(nameUsers)+4,nrow=sampleSize())))
+    colnames(aux1)[1] <- "positions"
+    colnames(aux1)[2:(nrow(nameUsers)+1)] <- nameUsers$username_id
+    colnames(aux1)[(nrow(nameUsers)+2):length(aux1)] <- c("numResp","posPairs","agreemCount","agreemPerc") 
+    nc <- factorial(nrow(nameUsers)) / (2 * factorial(nrow(nameUsers) - 2))
+    print(aux1)
+    print(nc)
+    aux2 <- data.frame(matrix(NA,ncol=nc,nrow=sampleSize()))
+    print(aux2)
+    agreements <<- cbind(aux1,aux2)
+    agreemExists <<- 1
+    print(agreements)
+    # Show the Stop button and disable configuration buttons
     conf$init[nrow(conf)] <<- 1
     updateRadioButtons(session,"stateValid",
                        choices=list("Yes" = 1, "No" = 0),
@@ -615,9 +660,6 @@ server <- function(input, output, session) {
     if(conf$init[nrow(conf)]==0){
       print("Se va a cambiar el fichero de artículos a validar")
       if(!is.null(input$newArticlesFile) && input$newArticlesFile$type == "text/csv"){
-        # dir.create("tempdir")
-        # file.copy(input$newArticlesFile$datapath, file.path("tempdir",input$newArticlesFile$name))
-        # drop_upload(paste0("tempdir/",input$newArticlesFile$name),inputDir, mode = "overwrite")
         file.copy(input$newArticlesFile$datapath, paste0(inputDir,input$newArticlesFile$name))
         conf$fileArticles[nrow(conf)] <<- input$newArticlesFile$name
         print(conf$fileArticles[nrow(conf)])
@@ -628,7 +670,7 @@ server <- function(input, output, session) {
       }
       else{
         msg <- paste0("No se puede cargar el fichero ",conf$fileArticles[nrow(conf)])
-        shinyalert(title=msg,type="warning")
+        shinyalert(title=msg,closeOnClickOutside = TRUE,type="warning")
         message(msg)
       }
     }
@@ -643,23 +685,17 @@ server <- function(input, output, session) {
     if(conf$init[nrow(conf)]==0){
       print("Se va a cambiar el fichero de resúmenes a validar")
       if(!is.null(input$newSummariesFile) && input$newSummariesFile$type == "text/csv"){
-        # dir.create("tempdir")
-        # file.copy(input$newSummariesFile$datapath, file.path("tempdir",input$newSummariesFile$name))
-        print(input$newSummariesFile$datapath)
-        print(paste0(inputDir,input$newSummariesFile$name))
         file.copy(input$newSummariesFile$datapath, paste0(inputDir,input$newSummariesFile$name))
-        #drop_upload(paste0("tempdir/",input$newSummariesFile$name),inputDir, mode = "overwrite")
         conf$fileSummaries[nrow(conf)] <<- input$newSummariesFile$name
         print(conf$fileSummaries[nrow(conf)])
         summaries <<- loadCSV(paste0(inputDir,conf$fileSummaries[nrow(conf)]))
-        print(head(summaries))
         rv$confSum <<- rv$confSum + 1
         print(rv$confSum)
         shinyalert(title="Nuevo fichero de resúmenes almacenado", closeOnClickOutside = TRUE, type="success")
       }
       else{
         msg <- paste0("No se puede cargar el fichero ",conf$fileSummaries [nrow(conf)])
-        shinyalert(title=msg,type="warning")
+        shinyalert(title=msg,closeOnClickOutside = TRUE,type="warning")
         message(msg)
       }
     }
@@ -685,17 +721,17 @@ server <- function(input, output, session) {
     newUser$passod <- input$pswInput #sapply(input$pswInput, sodium::password_store)
     newUser$permission <- input$typeUserInput
     if(input$usernameInput %in% credentials$username_id){
-      shinyalert(title="Nombre de usuario repetido, elija otro",type="error")
+      shinyalert(title="Nombre de usuario repetido, elija otro",closeOnClickOutside = TRUE,type="error")
     }
     else{
       if(input$usernameInput != "" && input$pswInput != ""){
         credentials <<- rbind(credentials,newUser)
         rv$cred <<- rv$cred + 1
-        shinyalert(title="Nuevo usuario creado",type="success")
+        shinyalert(title="Nuevo usuario creado",closeOnClickOutside = TRUE,type="success")
       }
       else
       {
-        shinyalert(title="Faltan datos, no se puede crear el usuario",type="error")
+        shinyalert(title="Faltan datos, no se puede crear el usuario",closeOnClickOutside = TRUE,type="error")
       }
     }
   })
@@ -707,14 +743,11 @@ server <- function(input, output, session) {
       print("entro a if cambio tipo usuario")
       credentials["permission"][which(credentials$username_id==input$usernameInputChgType),] <<- newType
       rv$cred <<- rv$cred + 1
-      # filePath <- file.path(tempdir(),"users.csv")
-      # write.table(credentials,file=filePath,append = FALSE,sep=',',col.names = TRUE, row.names = FALSE)
-      # drop_upload(filePath,inputDir,mode = "overwrite")
       shinyalert(title="El tipo de usuario guardados", 
-                 text="El usuario deberá salir de la sesión para que los cambios se actualicen",type="success")
+                 text="El usuario deberá salir de la sesión para que los cambios se actualicen",closeOnClickOutside = TRUE,type="success")
     }
     else{
-      shinyalert(title="Introduzca un tipo de usuario diferente para continuar",type="error")
+      shinyalert(title="Introduzca un tipo de usuario diferente para continuar",closeOnClickOutside = TRUE,type="error")
     }
   })
   
@@ -723,13 +756,10 @@ server <- function(input, output, session) {
       print("entro a if psw")
       credentials["passod"][which(credentials$username_id==input$usernameInputChgPsw),] <<- input$pswInputChg #sapply(input$pswInputChg, sodium::password_store)
       rv$cred <<- rv$cred + 1
-      # filePath <- file.path(tempdir(),"users.csv")
-      # write.table(credentials,file=filePath,append = FALSE,sep=',',col.names = TRUE, row.names = FALSE)
-      # drop_upload(filePath,inputDir,mode = "overwrite")
-      shinyalert(title="Cambios sobre el usuario guardados",type="success")
+      shinyalert(title="Cambios sobre el usuario guardados",closeOnClickOutside = TRUE,type="success")
     }
     else{
-      shinyalert(title="Introduzca una contraseña para continuar",type="error")
+      shinyalert(title="Introduzca una contraseña para continuar",closeOnClickOutside = TRUE,type="error")
     }
   })
 
@@ -738,11 +768,8 @@ server <- function(input, output, session) {
   observeEvent(input$saveImage,{
     shinyjs::addClass(id = "UpdateAnimateSaveImage", class = "loading dots")
     shinyjs::disable("saveImage")
-    # fn <- file.path(tempdir(),paste0("summariesAppWorkspace-",Sys.Date(),".RData"))
-    # save.image(file = fn)
-    # drop_upload(fn,inputDir,mode = "overwrite")
     save.image(paste0(inputDir,"summariesAppWorkspace-",Sys.Date(),".RData"))
-    shinyalert(title="Imagen del workspace almacenada",type="success")
+    shinyalert(title="Imagen del workspace almacenada",closeOnClickOutside = TRUE,type="success")
     shinyjs::enable("saveImage")
     shinyjs::removeClass(id = "UpdateAnimateSaveImage", class = "loading dots")
   })
