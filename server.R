@@ -582,19 +582,22 @@ server <- function(input, output, session) {
   
   observeEvent(input$startValid,{
     # Create the table structure to calculate agreements
-    nameUsers <- credentials %>% filter(permission == "expert") %>%  select(username_id)
-    aux1 <- cbind(samplePositions(),data.frame(matrix(ncol=nrow(nameUsers)+4,nrow=sampleSize())))
-    colnames(aux1)[1] <- "positions"
-    colnames(aux1)[2:(nrow(nameUsers)+1)] <- nameUsers$username_id
-    colnames(aux1)[(nrow(nameUsers)+2):length(aux1)] <- c("numResp","posPairs","agreemCount","agreemPerc") 
-    nc <- factorial(nrow(nameUsers)) / (2 * factorial(nrow(nameUsers) - 2))
-    print(aux1)
-    print(nc)
-    aux2 <- data.frame(matrix(NA,ncol=nc,nrow=sampleSize()))
-    print(aux2)
-    agreements <<- cbind(aux1,aux2)
-    agreemExists <<- 1
-    print(agreements)
+    if(agreemExists == 0){
+      nameUsers <- credentials %>% filter(permission == "expert") %>%  select(username_id)
+      aux1 <- cbind(samplePositions(),data.frame(matrix(ncol=nrow(nameUsers)+6,nrow=sampleSize())))
+      colnames(aux1)[1] <- "positions"
+      colnames(aux1)[2:(nrow(nameUsers)+1)] <- nameUsers$username_id
+      colnames(aux1)[(nrow(nameUsers)+2):length(aux1)] <- c("numResp","posPairs","agreemCount","agreemPerc","agreedAnswer","A/M") 
+      aux1[length(aux1)] <- "Automatic"
+      nc <- factorial(nrow(nameUsers)) / (2 * factorial(nrow(nameUsers) - 2))
+      print(aux1)
+      print(nc)
+      aux2 <- data.frame(matrix(NA,ncol=nc,nrow=sampleSize()))
+      print(aux2)
+      agreements <<- cbind(aux1,aux2)
+      agreemExists <<- 1
+      print(agreements)
+    }
     # Show the Stop button and disable configuration buttons
     conf$init[nrow(conf)] <<- 1
     updateRadioButtons(session,"stateValid",
