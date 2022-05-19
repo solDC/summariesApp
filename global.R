@@ -44,8 +44,12 @@ if( !is.null(conf)){
 expertsValidations <- loadCSV(filePathEV)
 
 if(file.exists(filePathAg)){
-  agreements <- loadCSV(filePathAg)
-  agreemExists <- 1
+  if(nrow(conf)==1 && conf$init==0){
+    agreemExists <- 0
+  }else{
+    agreements <- loadCSV(filePathAg)
+    agreemExists <- 1
+  }
 }else{
   agreemExists <- 0
   print("need to create agreements")
@@ -65,3 +69,11 @@ onStop(function(){
     write.csv(x=agreements,file=filePathAg,row.names = FALSE)
   }
 })
+
+
+# Functions Agreements
+
+numCols <- function(x){
+  factorial(x) / (2 * factorial(x-2))
+}
+

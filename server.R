@@ -5,11 +5,11 @@ library(tidyverse)
 library(dplyr)
 library(tidyr)
 library(shinyalert)
+library(tibble)
 library(DT)
 library(krippendorffsalpha)
 library(RColorBrewer)
 library(ggplot2)
-library(rdrop2)
 
 # Main login screen
 #####
@@ -97,12 +97,12 @@ server <- function(input, output, session) {
     summariesValidate
   })
   
-  # numExperts <<- reactive({
-  #   rv$cred
-  #   
-  #   aux <- credentials %>% filter(permission == "expert")
-  #   nrow(aux)
-  # })
+  numExperts <<- reactive({
+    rv$cred
+
+    aux <- credentials %>% filter(permission == "expert")
+    nrow(aux)
+  })
   
   
   #LOGIN: SHOW APPROPIATE INTERFACE
@@ -196,6 +196,7 @@ server <- function(input, output, session) {
   
   observeEvent(input$login,{
   if (USER$login == TRUE) {
+    credentials["lastLogin"][which(credentials$username_id==USER$name),] <<- format(as.Date(Sys.Date(),origin="1970-01-01"))
      if(typeUser() == "expert"){
        if(conf$init == 0){ #AÑADIR CONDICION DE SI LA LISTA DEL USER EXPERT ESTÁ VACÍA
          shinyalert(title="No hay resúmenes para validar. Salga de la aplicación.", closeOnClickOutside = TRUE, type="warning")
@@ -460,7 +461,8 @@ server <- function(input, output, session) {
                         textInput("usernameInput", label = "Ingrese el nombre de usuario", value = ""),
                         textInput("pswInput", label = "Ingrese la contraseña", value = ""),
                         selectInput("typeUserInput", label = "Seleccione",
-                                    choices = credentials$permission),
+                                    choices = credentials$permission,
+                                    selected = "expert"),
                         actionButton("saveNewUser", label = "Crear Usuario", class="")),
                     box(width = 4, title = "Modificar contraseña usuario",solidHeader = TRUE,status = "primary",
                         selectInput("usernameInputChgPsw", label = "Seleccione el usuario cuya contraseña quiere modificar",
@@ -468,13 +470,13 @@ server <- function(input, output, session) {
                         textInput("pswInputChg", label = "Ingrese la nueva contraseña", value = ""),
                         actionButton("changePswUser", label= "Modificar",class="")
                     ), #box
-                    box(width = 4, title = "Modificar tipo de usuario",solidHeader = TRUE,status = "primary",
-                        selectInput("usernameInputChgType", label = "Seleccione el usuario cuyos permisos quiera modificar",
-                                    choices = credentials$username_id),
-                        selectInput("typeUserInputChgType", label = "Seleccione el nuevo tipo de usuario",
-                                    choices = list("expert", "admin")),
-                        actionButton("changeTypeUser", label= "Modificar",class="")
-                    ) #box
+                    # box(width = 4, title = "Modificar tipo de usuario",solidHeader = TRUE,status = "primary",
+                    #     selectInput("usernameInputChgType", label = "Seleccione el usuario cuyos permisos quiera modificar",
+                    #                 choices = credentials$username_id),
+                    #     selectInput("typeUserInputChgType", label = "Seleccione el nuevo tipo de usuario",
+                    #                 choices = list("expert", "admin")),
+                    #     actionButton("changeTypeUser", label= "Modificar",class="")
+                    # ) #box
                     ), #fluidRow
                   fluidRow(
                     box(width = 12, title = "Listado de usuarios",solidHeader = TRUE,status = "primary",
@@ -587,19 +589,19 @@ server <- function(input, output, session) {
       aux1 <- cbind(samplePositions(),data.frame(matrix(ncol=nrow(nameUsers)+6,nrow=sampleSize())))
       colnames(aux1)[1] <- "positions"
       colnames(aux1)[2:(nrow(nameUsers)+1)] <- nameUsers$username_id
-      colnames(aux1)[(nrow(nameUsers)+2):length(aux1)] <- c("numResp","posPairs","agreemCount","agreemPerc","agreedAnswer","A/M") 
+      colnames(aux1)[(nrow(nameUsers)+2):length(aux1)] <- c("numResp","posPairs","agreemCount","agreemPerc","agreedAnswer","Auto-Manual") 
       aux1[length(aux1)] <- "Automatic"
-      nc <- factorial(nrow(nameUsers)) / (2 * factorial(nrow(nameUsers) - 2))
-      print(aux1)
-      print(nc)
+      nc <- numCols(nrow(nameUsers))#factorial(nrow(nameUsers)) / (2 * factorial(nrow(nameUsers) - 2))
       aux2 <- data.frame(matrix(NA,ncol=nc,nrow=sampleSize()))
-      print(aux2)
+      colN <- rep("P",nc)
+      colnames(aux2) <- paste0(colN,c(1:nc))
       agreements <<- cbind(aux1,aux2)
-      agreemExists <<- 1
       print(agreements)
+      agreemExists <<- 1
     }
     # Show the Stop button and disable configuration buttons
     conf$init[nrow(conf)] <<- 1
+    conf$dateInit[nrow(conf)] <<- format(as.Date(Sys.Date(),origin="1970-01-01"))
     updateRadioButtons(session,"stateValid",
                        choices=list("Yes" = 1, "No" = 0),
                        selected = 1)
@@ -622,9 +624,12 @@ server <- function(input, output, session) {
     shinyjs::enable("saveParamAgreem")
     shinyjs::enable("saveSampleSize")
     nrowC <- nrow(conf)
+    conf$dateStop[nrowC] <<- format(as.Date(Sys.Date(),origin="1970-01-01"))
     newConf <- conf[nrowC,]
     newConf$id <- conf$id[nrowC]+1
     newConf$init <- 0
+    newConf$dateInit <- NA
+    newConf$dateStop <- NA
     conf <<- rbind(conf,newConf)
   })
   
@@ -718,19 +723,33 @@ server <- function(input, output, session) {
   
   #####
   observeEvent(input$saveNewUser,{
-    newUser <- data.frame(matrix(ncol=length(credentials),nrow=1))
-    colnames(newUser) <- colnames(credentials)
-    newUser$username_id <- input$usernameInput
-    newUser$passod <- input$pswInput #sapply(input$pswInput, sodium::password_store)
-    newUser$permission <- input$typeUserInput
     if(input$usernameInput %in% credentials$username_id){
       shinyalert(title="Nombre de usuario repetido, elija otro",closeOnClickOutside = TRUE,type="error")
     }
     else{
       if(input$usernameInput != "" && input$pswInput != ""){
+        newUser <- data.frame(matrix(ncol=length(credentials),nrow=1))
+        colnames(newUser) <- colnames(credentials)
+        newUser$username_id <- input$usernameInput
+        newUser$passod <- input$pswInput #sapply(input$pswInput, sodium::password_store)
+        newUser$permission <- input$typeUserInput
+        newUser$lastLogin <- NA
         credentials <<- rbind(credentials,newUser)
+        print(credentials)
         rv$cred <<- rv$cred + 1
         shinyalert(title="Nuevo usuario creado",closeOnClickOutside = TRUE,type="success")
+        # Add new user to agreements table if exists and only if new user is an expert
+        if((agreemExists == 1) && (newUser$permission == "expert")){
+          newColUser <- rep(NA,sampleSize())
+          agreements <<- add_column(agreements,newColUser,.after = numExperts()+1) #library(tibble)
+          colnames(agreements)[numExperts()+1] <<- input$usernameInput
+          #difCol <-numExperts() # En realidad es numExperts() - 1 pero todavía no se llegó a actualizar el numExperts() --> si se actualiza
+          agreements <<- cbind(as.data.frame(agreements),as.data.frame(matrix(NA,ncol=numExperts()-1,nrow=sampleSize())))
+          nc<-numCols(numExperts())
+          colN <- rep("P",nc)
+          colnames(agreements)[(length(agreements)-nc+1):length(agreements)] <<- paste0(colN,c(1:nc))
+        }
+        print(agreements)
       }
       else
       {
@@ -739,20 +758,20 @@ server <- function(input, output, session) {
     }
   })
   
-  observeEvent(input$changeTypeUser,{
-    currentType <- credentials["permission"][which(credentials$username_id==input$usernameInputChgType),] 
-    newType <- input$typeUserInputChgType
-    if( newType != currentType){
-      print("entro a if cambio tipo usuario")
-      credentials["permission"][which(credentials$username_id==input$usernameInputChgType),] <<- newType
-      rv$cred <<- rv$cred + 1
-      shinyalert(title="El tipo de usuario guardados", 
-                 text="El usuario deberá salir de la sesión para que los cambios se actualicen",closeOnClickOutside = TRUE,type="success")
-    }
-    else{
-      shinyalert(title="Introduzca un tipo de usuario diferente para continuar",closeOnClickOutside = TRUE,type="error")
-    }
-  })
+  # observeEvent(input$changeTypeUser,{
+  #   currentType <- credentials["permission"][which(credentials$username_id==input$usernameInputChgType),] 
+  #   newType <- input$typeUserInputChgType
+  #   if( newType != currentType){
+  #     print("entro a if cambio tipo usuario")
+  #     credentials["permission"][which(credentials$username_id==input$usernameInputChgType),] <<- newType
+  #     rv$cred <<- rv$cred + 1
+  #     shinyalert(title="El tipo de usuario guardados", 
+  #                text="El usuario deberá salir de la sesión para que los cambios se actualicen",closeOnClickOutside = TRUE,type="success")
+  #   }
+  #   else{
+  #     shinyalert(title="Introduzca un tipo de usuario diferente para continuar",closeOnClickOutside = TRUE,type="error")
+  #   }
+  # })
   
   observeEvent(input$changePswUser,{
     if(input$pswInputChg != ""){
