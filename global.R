@@ -1,11 +1,13 @@
 library(shiny)
+library(dplyr)
 #library(readr)
 
-# Set RStudio Connect directories
-outputDir <- "./data/outputs/"
-inputDir <- "./data/inputs/"
 
 set.seed(123)
+
+# Set Local / RStudio Connect directories
+outputDir <- "./data/outputs/"
+inputDir <- "./data/inputs/"
 
 # Utility function to load csv files from dropbox
 loadCSV <- function(filePath){
@@ -29,7 +31,6 @@ loadCSV <- function(filePath){
 filePathCd <- file.path(inputDir,"users.csv")
 filePathCf <- file.path(inputDir,"conf.csv")
 filePathEV <- file.path(outputDir,"validations.csv")
-filePathAg <- file.path(outputDir,"agreements.csv")
 
 conf <- loadCSV(filePathCf)
 credentials <- loadCSV(filePathCd)
@@ -41,7 +42,17 @@ if( !is.null(conf)){
   shinyalert(title="Salta de la aplicación", text="Se necesita el fichero de configuración para continuar",
              closeOnClickOutside = TRUE, type="error")
 }
+
 expertsValidations <- loadCSV(filePathEV)
+###### --> --> --> SOL CHEQUEAR DESPUES DE GUARDAR VALIDACIONES USUARIOS
+expertsValidationsCurrExp <- as.data.frame(expertsValidations %>% filter(idExp == conf$id[nrow(conf)]))
+# print(nrow(expertsValidations))
+# print(nrow(expertsValidationsCurrExp))
+print(expertsValidationsCurrExp)
+newValid <- 0
+
+##### --> --> --> SOL CHEQUEAR DESPUES DE GUARDAR VALIDACIONES USUARIOS
+filePathAg <- file.path(outputDir,paste0("agreements-",conf$id[nrow(conf)],".csv"))
 
 if(file.exists(filePathAg)){
   if(nrow(conf)==1 && conf$init==0){
@@ -63,7 +74,10 @@ onStop(function(){
   # Save conf
   write.csv(x=conf,file=filePathCf,row.names = FALSE)
   # Save validations
-  write.csv(x=expertsValidations,file=filePathEV,row.names = FALSE)
+  if(newValid > 0){
+    expertsValidations <<- merge(expertsValidations,expertsValidationsCurrExp,by="idExp") #--> --> --> SOL CHEQUEAR DESPUES DE GUARDAR VALIDACIONES USUARIOS
+    write.csv(x=expertsValidations,file=filePathEV,row.names = FALSE) 
+  }
   # Save agreements if created (generated when the first validation experiment starts)
   if (agreemExists == 1){
     write.csv(x=agreements,file=filePathAg,row.names = FALSE)
