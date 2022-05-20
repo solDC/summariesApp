@@ -1,2 +1,2 @@
 "id","sampleSize","fileSummaries","fileArticles","minNumValid","minLevelAgreem","init","dateInit","dateStop"
-1,1,"summaries-700-128.csv","xlsum.csv",3,63,1,"2022-05-19",NA
+1,1,"summaries-700-128.csv","xlsum.csv",3,63,0,"2022-05-19",NA
