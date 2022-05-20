@@ -1,6 +1,7 @@
 library(shiny)
 library(dplyr)
 #library(readr)
+library(rstan)
 
 
 set.seed(123)
@@ -29,10 +30,19 @@ filePathCf <- file.path(inputDir,"conf.csv")
 
 conf <- loadCSV(filePathCf)
 credentials <- loadCSV(filePathCd)
+print(conf)
+print(credentials)
 
+filePathAV <- file.path(inputDir,paste0("articlesToValidate-",conf$id[nrow(conf)],".rds"))
 if( !is.null(conf)){
-  articles <- loadCSV(paste0(inputDir,conf$fileArticles[nrow(conf)]))
-  summaries <- loadCSV(paste0(inputDir,conf$fileSummaries[nrow(conf)])) 
+  if(file.exists(filePathAV)){
+    articlesToValidate <- readRDS(filePathAV)
+    articlesToValidateExists <- 1
+  }else{
+    articlesToValidateExists <<- 0
+    articles <- loadCSV(paste0(inputDir,conf$fileArticles[nrow(conf)]))
+    summaries <- loadCSV(paste0(inputDir,conf$fileSummaries[nrow(conf)])) 
+  }
 }else{
   message("Salta de la aplicación. Se necesita el fichero de configuración para continuar.")
 }
@@ -70,16 +80,18 @@ onStop(function(){
   write.csv(credentials,file=filePathCd,row.names = FALSE)#, row.names = FALSE)
   # Save conf
   write.csv(x=conf,file=filePathCf,row.names = FALSE)
+  # Save articles To Validate
+  if(articlesToValidateExists == 1){
+    saveRDS(articlesToValidate,file=filePathAV)
+  }
   # Save validations
   if(expValidExists == 1){
-    #expertsValidations <- merge(expertsValidations,expertsValidationsCurrExp,by="idExp",all=TRUE) #--> --> --> SOL CHEQUEAR DESPUES DE GUARDAR VALIDACIONES USUARIOS
     print(filePathEV)
-    #write.csv(x=expertsValidations,file=filePathEV,row.names = FALSE)
     saveRDS(expertsValidations,file=filePathEV)
   }
   # Save agreements if created (generated when the first validation experiment starts)
   if (agreemExists == 1){
-    write.csv(x=agreements,file=filePathAg,row.names = FALSE)
+    saveRDS(agreements,file=filePathAg)
   }
 })
 
