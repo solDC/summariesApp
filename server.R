@@ -47,8 +47,7 @@ loginpage <- div(id = "loginpage", style = "width: 500px; max-width: 100%; margi
 ########
 server <- function(input, output, session) {
 
-  rv <<- reactiveValues(cred=0, confS=0, confAg=0, confArt=0, confSum=0, init=0, newExp=0, newValid=0, mergeEV=0) #rv$mergeEV  para actualizar tabla admin
-  #expertValid <- reactiveValues(atv=articles[FALSE,],donePos=NULL, flag=0)
+  rv <<- reactiveValues(cred=0, confS=0, confAg=0, confArt=0, confSum=0, init=0, newExp=0, newValid=0, mergeEV=0) 
   
   # Credentials reactive variables
   numExperts <<- reactive({
@@ -163,26 +162,14 @@ server <- function(input, output, session) {
       }
     }
   })
-  
-  # Reactive Value to store the user's previous validations stored in the file
-  # df <- data.frame(matrix(ncol=length(expertsValidations),nrow=0))
-  # colnames(df) <- colnames(expertsValidations)
-  # EXPERT_VALIDATION <- reactiveValues(df = df) #EXPERT_VALIDATION$df
-  
-  # Reactive Value to store the position of all validated titles perform by the user (previous and new)
+ 
+    # Reactive Value to store the position of all validated titles perform by the user (previous and new)
   positions <- data.frame(matrix(ncol=1,nrow=0))
   colnames(positions) <- c("position")
   userTitles <- data.frame(matrix(ncol=1,nrow=0))
   colnames(userTitles) <- c("title")
-  VALIDATIONS <- reactiveValues(positions = positions, userTitles = userTitles, pending = articlesToValidate ) #VALIDATIONS$positions
-  
-  # # Reactive Value to store the titles that need validation from the user
-  # 
-  # TITLES <- reactiveValues() #TITLES$userTitles
-  # 
-  # # Reactive Value to store the articles which summaries the user needs to validate
-  # ARTICLES <- reactiveValues(df = articlesToValidate) #ARTICLES$df
-  # 
+  validations <- reactiveValues(positions = positions, userTitles = userTitles, pending = articlesToValidate ) #validations$positions
+  agreemTable <- reactiveValues(df = agreements)
   
   #####
   observeEvent(input$login,{
@@ -200,24 +187,28 @@ server <- function(input, output, session) {
       }
       else{
         print(expertsValidations %>% 
-                filter(username_id == USER$name))
-        validatedTitlesPos <- expertsValidations %>% filter(username_id == USER$name) %>% select(position) 
-        VALIDATIONS$positions <- as.data.frame(validatedTitlesPos$position)
-        print((VALIDATIONS$positions))
+                filter(username_id == USER$name) %>% filter(idExp == conf$id[nrow(conf)]))
+        print(str(validations$pending))
+        
+        validatedTitlesPos <- expertsValidations %>% filter(username_id == USER$name) %>% filter(idExp == conf$id[nrow(conf)]) %>% select(position) 
+        validations$positions <- as.data.frame(validatedTitlesPos$position)
+        colnames(validations$positions) <- "position"
+        print((validations$positions))
+        print(str(validations$positions))
         # If there's agreement in certain summaries-articles, there's no need of validating them any more
         # if(AGREEM$n==1){
-        #   posDiscard <- AGREEMENTS$table%>% filter(agreemPerc > conf$minLevelAgreem) %>%  select(position)
+        #   posDiscard <- agreemTable$df%>% filter(agreemPerc > conf$minLevelAgreem) %>%  select(position)
         #   print(posDiscard$position)
         #   ARTICLES$df <- subset(articles,!(position %in% posDiscard$position))
         # }
         # Randomize titles to validate so different users validate articles in different order
-        if (nrow(VALIDATIONS$positions) >= 1){
-          VALIDATIONS$userTitles <- sample(VALIDATIONS$pending[!(VALIDATIONS$pending$position %in% VALIDATIONS$positions$position),2])
-          VALIDATIONS$pending <- VALIDATIONS$pending %>% anti_join(VALIDATIONS$positions,by="position")
-          print(VALIDATIONS$pending$position)
+        if (nrow(validations$positions) >= 1){
+          validations$userTitles <- sample(validations$pending[!(validations$pending$position %in% validations$positions$position),2])
+          validations$pending <- validations$pending %>% anti_join(validations$positions,by="position")
+          print(validations$pending$position)
         }
         else{
-          VALIDATIONS$userTitles <- sample(VALIDATIONS$pending$title)
+          validations$userTitles <- sample(validations$pending$title)
         }
       }  
     }
@@ -249,7 +240,7 @@ server <- function(input, output, session) {
                       width=12, title="1- TITULO: seleccione el artículo a validar", status = "primary", solidHeader = TRUE, collapsible = FALSE,
                       selectInput("selectTitle",
                                   label=("Seleccione el artículo a validar"),
-                                  choices = VALIDATIONS$userTitles)) 
+                                  choices = validations$userTitles)) 
                   ),
                   fluidRow(
                     box(
@@ -516,7 +507,7 @@ server <- function(input, output, session) {
   output$expertValidatedBox <- renderInfoBox({
     infoBox(
       "Validated Summaries",
-      nrow((VALIDATIONS$positions)),
+      nrow((validations$positions)),
       icon = icon("fal fa-check",verify_fa = FALSE),   # ("glyphicon-check", lib = "glyphicon"),
       color = "olive"
     )
@@ -525,7 +516,7 @@ server <- function(input, output, session) {
   output$expertPendingBox <- renderInfoBox({
     infoBox(
       "Pending Validation",
-      length(VALIDATIONS$userTitles), 
+      length(validations$userTitles), 
       icon = icon("fal fa-edit",verify_fa = FALSE), #("glyphicon-edit", lib = "glyphicon"),
       color = "maroon"
     )
@@ -553,13 +544,14 @@ server <- function(input, output, session) {
   ######
   # SAVE VALIDATION AND UPDATE TITLES LIST
   observeEvent(input$validateButton,{
-    print("Save validation")
     # Save validation (user's answers)
+    #####
     validation <- data.frame(matrix(ncol=length(expertsValidations),nrow=1))
     colnames(validation) <- colnames(expertsValidations)
     validation$idExp <- conf$id[nrow(conf)]
     validation$username_id <- USER$name
-    validation$position <- articlesToValidate %>% filter(title == input$selectTitle)  %>% select(position)
+    pos <- articlesToValidate %>% filter(title == input$selectTitle)  %>% select(position)
+    validation$position <- pos$position
     validation$question1 <- as.integer(input$question1)
     if(input$question1 == 2){
       validation$question2 <- 0
@@ -573,60 +565,56 @@ server <- function(input, output, session) {
     validation$articleTitle <- input$selectTitle
     validation$questions  <- as.integer(validation$question1)*100+as.integer(validation$question2)*10+as.integer(validation$question3)
     print(validation)
+    print(str(validation))
+    #####
     
     # Add validation to expertsValidations global dataframe
+    #####
     expertsValidations <<- rbind(expertsValidations,validation)
     print(expertsValidations)
-    # expertValid$done <- rbind(expertValid$done,validation$position)
-    # print(nrow(expertValid$done))
-    # expertValid$atv <- expertValid$atv %>% filter(!(position == validation$position))
-    # print(nrow(expertValid$atv))
-    # expertValid$flag <- expertValid$flag +1
-    # 
-    # shinyalert(title="Validation stored",type="success")
-    # updateSelectInput(session,"selectTitle",choices=sample(expertValid$atv$title))
-    
     position <- validation$position
-    VALIDATIONS$positions <- as.data.frame(VALIDATIONS$positions)
-    VALIDATIONS$positions <- rbind(VALIDATIONS$positions,position)
+    validations$positions <- as.data.frame(validations$positions)
+    validations$positions <- rbind(validations$positions,position)
+    colnames(validations$positions) <- c("position")
+    print(validations$positions)
+    validations$userTitles <- validations$pending[!(validations$pending$position %in% validations$positions$position),2]
+    validations$pending <- validations$pending[!(validations$pending$position %in% validations$positions$position),]
+    print(nrow(validations$pending))
+    #####
     
-    colnames(VALIDATIONS$positions) <- c("position")
-    print(VALIDATIONS$positions)
-    VALIDATIONS$userTitles <- VALIDATIONS$pending[!(VALIDATIONS$pending$position %in% VALIDATIONS$positions$position),2]
-    VALIDATIONS$pending <- VALIDATIONS$pending[!(VALIDATIONS$pending$position %in% VALIDATIONS$positions$position),]
-    print(nrow(VALIDATIONS$pending))
-    updateSelectInput(session,"selectTitle",choices=sample(VALIDATIONS$userTitles))
-    
-    
-    # agreements[agreements$position == validation$position,validation$username_id] <- validation$questions
-    # agreements$numResp[agreements$position == validation$position] <- numExperts()-sum(is.na(agreements[agreements$position == validation$position,2:(numExperts()+1)]))
-    # if(agreements$numResp[agreements$position == validation$position] >= conf$minNumValid[nrow(conf)]){
-    #   comb <- combn(agreements[agreements$position == validation$position,2:(numExperts()+1)],2,simplify = FALSE)
-    #   agreements$posPairs[agreements$position == validation$position] <- calcPairs(agreements$numResp[agreements$position == validation$position])
-    #   n <- numExperts()+8
-    #   for(val in comb){
-    #     agreements[agreements$position == validation$position,n] <- (val[1]==val[2])
-    #     n <- n+1
-    #   }
-    #   agreements$agreemCount[agreements$position == validation$position] <- 
-    #     rowSums(agreements[agreements$position == validation$position,(numExperts()+8):length(agreements)],na.rm = TRUE)
-    #   agreements$agreemPerc[agreements$position == validation$position] <- 
-    #     with(agreements,ifelse(agreements$possPairs[agreements$position == validation$position] >= conf$minNumValid[nrow(conf)](),
-    #                            round(agreements$agreemCount[agreements$position == validation$position] / 
-    #                                    agreements$possPairs[agreements$position == validation$position] * 100,2),
-    #                                                                                    0))
-    #   if(agreements$agreemPerc < conf$minLevelAgreem[nrow(conf)]){
-    #     agreements$agreedAnswer[agreements$position == validation$position] <- 0
-    #   }
-    #   else{
-    #     agreements$agreedAnswer[agreements$position == validation$position] <- 
-    #       strtoi(names(which.max(table(agreements[agreements$position == validation$position,2:(numExperts()+1)]))))
-    #   }
-    #   print(agreements[agreements$position == validation$position,])
-    #   
-    # }
-
-
+    # Calculate if with this new answer a new agreement has been reached
+    #####
+    rowIndex <- which(agreements$position == validation$position)
+    colIndex <- which(colnames(agreements) == validation$username_id)
+    print(rowIndex)
+    print(colIndex)
+    agreements[rowIndex ,colIndex] <<- validation$questions
+    agreements$numResp[rowIndex] <<- numExperts()-sum(is.na(agreements[rowIndex,2:(numExperts()+1)]))
+    if(agreements$numResp[rowIndex] >= conf$minNumValid[nrow(conf)]){
+      comb <- combn(agreements[rowIndex,2:(numExperts()+1)],2,simplify = FALSE)
+      agreements$posPairs[rowIndex] <<- calcPairs(agreements$numResp[rowIndex])
+      
+      n <- numExperts()+8
+      for(val in comb){
+        agreements[rowIndex,n] <<- (val[1]==val[2])
+        n <- n+1
+      }
+      agreements$agreemCount[rowIndex] <<- rowSums(agreements[rowIndex,(numExperts()+8):length(agreements)],na.rm = TRUE)
+      agreements$agreemPerc[rowIndex] <<- round(agreements$agreemCount[rowIndex] / agreements$posPairs[rowIndex] * 100,2)
+      # agreements$agreemPerc[rowIndex] <<- with(agreements,
+      #                                         ifelse(agreements$posPairs[rowIndex] >= conf$minNumValid[nrow(conf)],
+      #                                                round(agreements$agreemCount[rowIndex] / agreements$posPairs[rowIndex] * 100,2), 0))
+      if(agreements$agreemPerc[rowIndex] < conf$minLevelAgreem[nrow(conf)]){
+        agreements$agreedAnswer[rowIndex] <<- 0
+      }
+      else{
+        vec <- table(unname(unlist(agreements[rowIndex,2:(numExperts()+1)])))
+        print(vec)
+        agreements$agreedAnswer[rowIndex] <<- strtoi(names(which.max(vec)))
+      }
+      print(agreements[rowIndex,])
+    }
+    updateSelectInput(session,"selectTitle",choices=sample(validations$userTitles))
   })
   
   # Configure Experiment

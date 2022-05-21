@@ -51,15 +51,11 @@ if(file.exists(filePathAV)){
 
 filePathAg <- file.path(outputDir,paste0("agreements-",conf$id[nrow(conf)],".rds"))
 if(file.exists(filePathAg)){
-  # if(nrow(conf)==1 && conf$init==0){
-  #   agreemExists <- 0
-  # }else{
-    #agreements <- loadCSV(filePathAg)
   agreements <- readRDS(filePathAg)
   agreemExists <- 1
-  # }
 }else{
   agreemExists <- 0
+  agreements <- NULL
   message("need to create agreements")
 }
 
