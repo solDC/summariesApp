@@ -180,9 +180,7 @@ server <- function(input, output, session) {
   TITLES <- reactiveValues(userTitles = userTitles) #TITLES$userTitles
   
   # Reactive Value to store the articles which summaries the user needs to validate
-  dfA <- data.frame(matrix(ncol=length(articles),nrow=0))
-  colnames(dfA) <-colnames(articles)
-  ARTICLES <- reactiveValues(df = dfA) #ARTICLES$df
+  ARTICLES <- reactiveValues(df = articlesToValidate) #ARTICLES$df
   
   
   #####
@@ -200,30 +198,11 @@ server <- function(input, output, session) {
         print("está en conf$init[nrow(conf)] == 0")
       }
       else{
-        # Initialize local variables
-        # expertValid$atv <- articlesToValidate
-        # df <- data.frame(matrix(ncol=1,nrow=0))
-        # colnames(df) <- "position"
-        # expertValid$donePos <- df
-        # # Check if the expert has validated any summaries of this experiment and discard them from the articles/summaries that are pending to validate
-        # validatedTitlesPos <- expertsValidations %>% filter(username_id == USER$name) %>% filter(idExp == conf$id[nrow(conf)]) %>% select(position)
-        # if(nrow(expertValid$donePos) >= 1){
-        #   expertValid$donePos <- validatedTitlesPos$position
-        #   print(expertValid$donePos)
-        #   expertValid$atv <- expertValid$atv %>% anti_join(expertValid$donePos,by="position")
-        # }
-        # print(paste0(USER$name," ---- num done: ", nrow(expertValid$donePos)," --  num pending:  ",nrow(expertValid$atv)))
-        #  # posDiscard <- agreements %>% filter(agreemPerc >= conf$minLevelAgreem) %>% select(position)
-        # # print(posDiscard$position)
-        # # expertValid$atv <- subset(expertValid$atv,!(position %in% posDiscard$position))
-        # print(expertValid$atv[1:3,c(-1,-2,-3)])
-        # 
-        ARTICLES$df <- articlesToValidate
         print(expertsValidations %>% 
                 filter(username_id == USER$name))
         validatedTitlesPos <- expertsValidations %>% filter(username_id == USER$name) %>% select(position) 
-        VALIDATIONS$positions <- as.data.frame(validatedTitlesPos)
-        print(validatedTitlesPos)
+        VALIDATIONS$positions <- as.data.frame(validatedTitlesPos$position)
+        print((VALIDATIONS$positions))
         # If there's agreement in certain summaries-articles, there's no need of validating them any more
         # if(AGREEM$n==1){
         #   posDiscard <- AGREEMENTS$table%>% filter(agreemPerc > conf$minLevelAgreem) %>%  select(position)
@@ -231,22 +210,17 @@ server <- function(input, output, session) {
         #   ARTICLES$df <- subset(articles,!(position %in% posDiscard$position))
         # }
         # Randomize titles to validate so different users validate articles in different order
-        if (length(VALIDATIONS$positions) >= 1){
-          TITLES$userTitles <- sample(ARTICLES$df[!(row.names(ARTICLES$df) %in% VALIDATIONS$positions$position),3])
+        if (nrow(VALIDATIONS$positions) >= 1){
+          # TITLES$userTitles <- sample(ARTICLES$df[!(row.names(ARTICLES$df) %in% VALIDATIONS$positions$position),2])
+          # ARTICLES$df <- ARTICLES$df[!(row.names(ARTICLES$df) %in% VALIDATIONS$positions$position),]
+          TITLES$userTitles <- sample(ARTICLES$df[!(ARTICLES$df$position %in% VALIDATIONS$positions$position),2])
+          ARTICLES$df <- ARTICLES$df %>% anti_join(VALIDATIONS$positions,by="position")
+          print(ARTICLES$df$position)
         }
         else{
           TITLES$userTitles <- sample(ARTICLES$df$title)
         }
       }  
-      # #   #No procesa antes currExpertPendingValid()
-      # #   if((nrow(currExpertPendingValid() == 0))){ #(is.null(currExpertPendingValid())) || 
-      # #   print("está en nrow(currExpertPendingValid() == 0")
-      # #   shinyalert(title="No tiene resúmenes para validar. Puede salir de la aplicación.", closeOnClickOutside = TRUE, type="info")
-      # #   }
-      #   #else{
-      # 
-      #   #}
-
     }
   }#if login true
 })
@@ -543,7 +517,7 @@ server <- function(input, output, session) {
   output$expertValidatedBox <- renderInfoBox({
     infoBox(
       "Validated Summaries",
-      nrow(distinct(VALIDATIONS$positions)),
+      nrow((VALIDATIONS$positions)),
       icon = icon("fal fa-check",verify_fa = FALSE),   # ("glyphicon-check", lib = "glyphicon"),
       color = "olive"
     )
@@ -560,18 +534,12 @@ server <- function(input, output, session) {
 
   selectedArticleData <- reactive ({
     if(articlesToValidateExists == 1){
-      articles %>% select(title,url,text,position) %>% filter(title %in% input$selectTitle)
+      message("En selectedArticleData")
+      articlesToValidate %>% select(title,url,text,position,summary) %>% filter(title %in% input$selectTitle)
     }
     else{NULL}
   })
-  
-  filteredGeneratedSummary<- reactive ({
-    if(!is.null(summaries)){
-      summaries[[1]][which(articles$title == input$selectTitle)]
-    }
-    else{NULL}
-  })
-  
+
   output$articleURL <- renderUI({
     if(articlesToValidateExists ==1){
     HTML(paste0("<p><b>Para leer el artículo visite: </b><a href=",selectedArticleData()$url,' target="_blank">',selectedArticleData()$url,"</a></p>"))
@@ -581,12 +549,12 @@ server <- function(input, output, session) {
   
   output$text <- renderText(selectedArticleData()$text)
   
-  output$generatedSummary <- renderText(filteredGeneratedSummary()) #)
+  output$generatedSummary <- renderText(selectedArticleData()$summary) 
   
   ######
   # SAVE VALIDATION AND UPDATE TITLES LIST
   observeEvent(input$validateButton,{
-
+    print("Save validation")
     # Save validation (user's answers)
     validation <- data.frame(matrix(ncol=length(expertsValidations),nrow=1))
     colnames(validation) <- colnames(expertsValidations)
@@ -609,6 +577,7 @@ server <- function(input, output, session) {
     
     # Add validation to expertsValidations global dataframe
     expertsValidations <<- rbind(expertsValidations,validation)
+    print(expertsValidations)
     # expertValid$done <- rbind(expertValid$done,validation$position)
     # print(nrow(expertValid$done))
     # expertValid$atv <- expertValid$atv %>% filter(!(position == validation$position))
@@ -619,11 +588,15 @@ server <- function(input, output, session) {
     # updateSelectInput(session,"selectTitle",choices=sample(expertValid$atv$title))
     
     position <- validation$position
-    VALIDATIONS$positions <- append(VALIDATIONS$positions$position,position)
     VALIDATIONS$positions <- as.data.frame(VALIDATIONS$positions)
+    VALIDATIONS$positions <- rbind(VALIDATIONS$positions,position)
+    
     colnames(VALIDATIONS$positions) <- c("position")
-    TITLES$userTitles <- sample(ARTICLES$df[!(row.names(ARTICLES$df) %in% VALIDATIONS$positions$position),3])
-    updateSelectInput(session,"selectTitle",choices=TITLES$userTitles)
+    print(VALIDATIONS$positions)
+    TITLES$userTitles <- ARTICLES$df[!(ARTICLES$df$position %in% VALIDATIONS$positions$position),2]
+    ARTICLES$df <- ARTICLES$df[!(ARTICLES$df$position %in% VALIDATIONS$positions$position),]
+    print(nrow(ARTICLES$df))
+    updateSelectInput(session,"selectTitle",choices=sample(TITLES$userTitles))
     
     
     # agreements[agreements$position == validation$position,validation$username_id] <- validation$questions
