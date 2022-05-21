@@ -66,7 +66,6 @@ if(file.exists(filePathAg)){
 expValidExists <- 0
 filePathEV <- file.path(outputDir,paste0("validations-",conf$id[nrow(conf)],".rds"))
 if(file.exists(filePathEV)){
-    #expertsValidations <- loadCSV(filePathEV)
   expertsValidations <- readRDS(file=filePathEV)
   expValidExists <- 1
 }else{
@@ -81,10 +80,6 @@ onStop(function(){
   write.csv(credentials,file=filePathCd,row.names = FALSE)#, row.names = FALSE)
   # Save conf
   write.csv(x=conf,file=filePathCf,row.names = FALSE)
-  # # Save articles To Validate
-  # if(articlesToValidateExists == 1){
-  #   saveRDS(articlesToValidate,file=filePathAV)
-  # }
   # Save validations
   if(expValidExists == 1){
     saveRDS(expertsValidations,file=filePathEV)
