@@ -165,23 +165,24 @@ server <- function(input, output, session) {
   })
   
   # Reactive Value to store the user's previous validations stored in the file
-  df <- data.frame(matrix(ncol=length(expertsValidations),nrow=0))
-  colnames(df) <- colnames(expertsValidations)
-  EXPERT_VALIDATION <- reactiveValues(df = df) #EXPERT_VALIDATION$df
+  # df <- data.frame(matrix(ncol=length(expertsValidations),nrow=0))
+  # colnames(df) <- colnames(expertsValidations)
+  # EXPERT_VALIDATION <- reactiveValues(df = df) #EXPERT_VALIDATION$df
   
   # Reactive Value to store the position of all validated titles perform by the user (previous and new)
   positions <- data.frame(matrix(ncol=1,nrow=0))
   colnames(positions) <- c("position")
-  VALIDATIONS <- reactiveValues(positions = positions) #VALIDATIONS$positions
-  
-  # Reactive Value to store the titles that need validation from the user
   userTitles <- data.frame(matrix(ncol=1,nrow=0))
   colnames(userTitles) <- c("title")
-  TITLES <- reactiveValues(userTitles = userTitles) #TITLES$userTitles
+  VALIDATIONS <- reactiveValues(positions = positions, userTitles = userTitles, pending = articlesToValidate ) #VALIDATIONS$positions
   
-  # Reactive Value to store the articles which summaries the user needs to validate
-  ARTICLES <- reactiveValues(df = articlesToValidate) #ARTICLES$df
-  
+  # # Reactive Value to store the titles that need validation from the user
+  # 
+  # TITLES <- reactiveValues() #TITLES$userTitles
+  # 
+  # # Reactive Value to store the articles which summaries the user needs to validate
+  # ARTICLES <- reactiveValues(df = articlesToValidate) #ARTICLES$df
+  # 
   
   #####
   observeEvent(input$login,{
@@ -211,14 +212,12 @@ server <- function(input, output, session) {
         # }
         # Randomize titles to validate so different users validate articles in different order
         if (nrow(VALIDATIONS$positions) >= 1){
-          # TITLES$userTitles <- sample(ARTICLES$df[!(row.names(ARTICLES$df) %in% VALIDATIONS$positions$position),2])
-          # ARTICLES$df <- ARTICLES$df[!(row.names(ARTICLES$df) %in% VALIDATIONS$positions$position),]
-          TITLES$userTitles <- sample(ARTICLES$df[!(ARTICLES$df$position %in% VALIDATIONS$positions$position),2])
-          ARTICLES$df <- ARTICLES$df %>% anti_join(VALIDATIONS$positions,by="position")
-          print(ARTICLES$df$position)
+          VALIDATIONS$userTitles <- sample(VALIDATIONS$pending[!(VALIDATIONS$pending$position %in% VALIDATIONS$positions$position),2])
+          VALIDATIONS$pending <- VALIDATIONS$pending %>% anti_join(VALIDATIONS$positions,by="position")
+          print(VALIDATIONS$pending$position)
         }
         else{
-          TITLES$userTitles <- sample(ARTICLES$df$title)
+          VALIDATIONS$userTitles <- sample(VALIDATIONS$pending$title)
         }
       }  
     }
@@ -250,7 +249,7 @@ server <- function(input, output, session) {
                       width=12, title="1- TITULO: seleccione el artículo a validar", status = "primary", solidHeader = TRUE, collapsible = FALSE,
                       selectInput("selectTitle",
                                   label=("Seleccione el artículo a validar"),
-                                  choices = TITLES$userTitles)) 
+                                  choices = VALIDATIONS$userTitles)) 
                   ),
                   fluidRow(
                     box(
@@ -526,7 +525,7 @@ server <- function(input, output, session) {
   output$expertPendingBox <- renderInfoBox({
     infoBox(
       "Pending Validation",
-      length(TITLES$userTitles), 
+      length(VALIDATIONS$userTitles), 
       icon = icon("fal fa-edit",verify_fa = FALSE), #("glyphicon-edit", lib = "glyphicon"),
       color = "maroon"
     )
@@ -593,10 +592,10 @@ server <- function(input, output, session) {
     
     colnames(VALIDATIONS$positions) <- c("position")
     print(VALIDATIONS$positions)
-    TITLES$userTitles <- ARTICLES$df[!(ARTICLES$df$position %in% VALIDATIONS$positions$position),2]
-    ARTICLES$df <- ARTICLES$df[!(ARTICLES$df$position %in% VALIDATIONS$positions$position),]
-    print(nrow(ARTICLES$df))
-    updateSelectInput(session,"selectTitle",choices=sample(TITLES$userTitles))
+    VALIDATIONS$userTitles <- VALIDATIONS$pending[!(VALIDATIONS$pending$position %in% VALIDATIONS$positions$position),2]
+    VALIDATIONS$pending <- VALIDATIONS$pending[!(VALIDATIONS$pending$position %in% VALIDATIONS$positions$position),]
+    print(nrow(VALIDATIONS$pending))
+    updateSelectInput(session,"selectTitle",choices=sample(VALIDATIONS$userTitles))
     
     
     # agreements[agreements$position == validation$position,validation$username_id] <- validation$questions
