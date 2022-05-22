@@ -1,6 +1,7 @@
 library(shiny)
 library(shinydashboard)
 library(shinyjs)
+library(rstan)
 library(tidyverse)
 library(dplyr)
 library(tidyr)
@@ -45,9 +46,25 @@ loginpage <- div(id = "loginpage", style = "width: 500px; max-width: 100%; margi
 # SERVER
 ########
 server <- function(input, output, session) {
+
+  rv <<- reactiveValues(cred=0, confS=0, confAg=0, confArt=0, confSum=0, init=0, newExp=0, newValid=0, mergeEV=0) 
   
-  rv <<- reactiveValues(cred=0, confS=0, confAg=0, confArt=0, confSum=0, newValid=0)
+  # Credentials reactive variables
+  numExperts <<- reactive({
+    rv$cred
+    
+    aux <- credentials %>% filter(permission == "expert")
+    message(paste0("numExperts"),nrow(aux))
+    nrow(aux)
+  })
   
+  typeUser <- reactive ({
+    req(USER$login)
+    
+    credentials["permission"][which(credentials$username_id==USER$name),]
+  })
+  
+  # Articles and summaries reactive variables
   numArticles <<- reactive({
     rv$confArt
     message(" calcula numArticles")
@@ -55,95 +72,24 @@ server <- function(input, output, session) {
   })
   
   sampleSize <<- reactive({
-    req(numArticles())
+    req(numArticles)
     rv$confS
+    rv$confArt
     
     message(" calcula sample size")
     round(conf$sampleSize[nrow(conf)]*numArticles()/100,0)
   })
   
   samplePositions <<- reactive({
-    req(numArticles())
-    req(sampleSize())
+    req(numArticles)
+    req(sampleSize)
     rv$confS
     rv$confArt
     
     message(" calcula sample positions")
     sort(sample(1:numArticles(),sampleSize(),replace=F))
   })
-  
-  articlesValidate <<- reactive({
-    rv$confS
-    rv$confArt
-    req(samplePositions())
-    
-    message("calcula articulos validar")
-    articlesValidate <- articles[samplePositions(),c(2,3,5)] # 
-    articlesValidate$position <- samplePositions()
-    # TO DO eliminar los artículos que ya tengan acuerdo indidividual
-    print(head(articlesValidate[1:3,-c(3)]))
-    articlesValidate
-  })
-  
-  summariesValidate <<- reactive({
-    rv$confS
-    rv$confSum
-    req(samplePositions())
-    
-    message("calcula summariesValidate")
-    
-    summariesValidate <- as.data.frame(summaries[samplePositions(),])
-    summariesValidate$position <- samplePositions()
-    colnames(summariesValidate) <- c("summary","position")  
-    print(head(summariesValidate))
-    # TO DO eliminar los resúmenes que ya tengan acuerdo indidividual
-    summariesValidate
-  })
-  
-  numExperts <<- reactive({
-    rv$cred
-    
-    aux <- credentials %>% filter(permission == "expert")
-    print(paste0("numExperts"),nrow(aux))
-    nrow(aux)
-  })
-  
-  currExpertValidations <- reactive({
-    req(USER$name)
-    rv$newValid
-    print("currExpertValidations")
-    print(expertsValidationsCurrExp)
-    if(nrow(expertsValidationsCurrExp) > 0){
-      df <- expertsValidationsCurrExp %>% filter(username_id == USER$name) 
-    }
-    else{
-      df <- NULL
-    }
-    print(df)
-    print(nrow(df))
-    df
-  })
-  
-  currExpertPendingValid <- reactive({
-    req(currExpertValidations())
-    req(summariesValidate())
-    req(articlesValidate())
-    rv$newValid #currExpertValidations()
-    
-    summariesValidate()
-    articlesValidate()
-    print("currExpertPendingValid")
-    if(!is.null(currExpertValidations())){
-      df <- sample(articlesValidate() %>% semi_join(currExpertValidations,by="position"))   #semi_join: dplyer
-    }
-    else{
-      df <- sample(articlesValidate())
-    }
-    print(df)
-    print(nrow(df))
-    df
-  })
-  
+
   #LOGIN: SHOW APPROPIATE INTERFACE
   ######
   login <- FALSE
@@ -152,7 +98,6 @@ server <- function(input, output, session) {
   
   observe({
     rv$cred
-    
     if (USER$login == FALSE) {
       if (!is.null(input$login)) {
         if (input$login > 0) {
@@ -188,21 +133,13 @@ server <- function(input, output, session) {
   # Logout button Render UI
   output$logoutbtn <- renderUI({
     req(USER$login)
-    tags$li(a(icon("fas fa-sign-out"), "Logout",
+    tags$li(a(icon("fas fa-sign-out",verify_fa = FALSE), "Logout",
               href="javascript:window.location.reload(true)"),
             class = "dropdown",
             style = "background-color: #eee !important; border: 0;
                     font-weight: bold; margin:5px; padding: 10px;")
   })
-  
-  ######
-  # Type of user
-  typeUser <- reactive ({
-    req(USER$login)
-    # No need to check if credential is loaded, can't reach this point if it wasn't loaded.
-    credentials["permission"][which(credentials$username_id==USER$name),]
-  })
-  
+
   ######
   # Sidebar panel Render UI
   output$sidebarpanel <- renderUI({
@@ -210,63 +147,82 @@ server <- function(input, output, session) {
       if(typeUser() == "expert"){
         sidebarMenu(
           id="tabsExpert",
-          menuItem("Informacion", tabName = "information", icon = icon("fas fa-info")),
-          menuItem("Validar resumen", tabName = "validate", icon = icon("th",lib = "font-awesome"))
+          menuItem("Informacion", tabName = "information", icon = icon("fas fa-info",verify_fa = FALSE)),
+          menuItem("Validar resumen", tabName = "validate", icon = icon("th",lib = "font-awesome",verify_fa = FALSE))
         )
       }
       else{
         sidebarMenu(
           id="tabsAdmin",
-          menuItem('Configurar "Validar Resúmenes"', tabName = "manageEvalSummaries", icon = icon("fal fa-cog")),
-          menuItem('Dashboard "Validar Resúmenes"', tabName = "dashboadEvalSummaries", icon = icon("tachometer-alt",lib = "font-awesome")),
-          menuItem('Gestionar Usuarios', tabName = "users", icon = icon("fal fa-user")),
-          menuItem('Guardar workspace', tabName = "manageData", icon = icon("fal fa-database"))
+          menuItem('Configurar "Validar Resúmenes"', tabName = "manageEvalSummaries", icon = icon("fal fa-cog",verify_fa = FALSE)),
+          menuItem('Dashboard "Validar Resúmenes"', tabName = "dashboadEvalSummaries", icon = icon("tachometer-alt",lib = "font-awesome",verify_fa = FALSE)),
+          menuItem('Gestionar Usuarios', tabName = "users", icon = icon("fal fa-user",verify_fa = FALSE)),
+          menuItem('Guardar workspace', tabName = "manageData", icon = icon("fal fa-database",verify_fa = FALSE))
         )
       }
     }
   })
-  
+ 
+    # Reactive Value to store the position of all validated titles perform by the user (previous and new)
+  positions <- data.frame(matrix(ncol=1,nrow=0))
+  colnames(positions) <- c("position")
+  userTitles <- data.frame(matrix(ncol=1,nrow=0))
+  colnames(userTitles) <- c("title")
+  validations <- reactiveValues(positions = positions, userTitles = userTitles, pending = articlesToValidate ) #validations$positions
+  reactAgreements <- reactiveValues(df=agreements,change=0)
+
+  #####
   observeEvent(input$login,{
-    if (USER$login == TRUE) {
-      credentials["lastLogin"][which(credentials$username_id==USER$name),] <<- format(as.Date(Sys.Date(),origin="1970-01-01"))
-      if(typeUser() == "expert"){
-        if((conf$init == 0) || (nrow(currExpertPendingValid())==0)){ 
-          shinyalert(title="No hay resúmenes para validar. Salga de la aplicación.", closeOnClickOutside = TRUE, type="warning")
-        }
+  if (USER$login == TRUE) {
+    rv$newExp
+    rv$init
+    reactAgreements$change
+
+    # Save last user access
+    credentials["lastLogin"][which(credentials$username_id==USER$name),] <<- format(Sys.Date(),origin="1970-01-01")
+    
+    if(typeUser() == "expert"){
+      if(conf$init[nrow(conf)] == 0 ){
+        shinyalert(title="Experimento no iniciado. Puede salir de la aplicación.", closeOnClickOutside = TRUE, type="info")
+        print("está en conf$init[nrow(conf)] == 0")
       }
-      else{#user admin
-        if(is.null(articles)){
-          message("El fichero con los artículos cuyos resúmenes hay que validar no se ha cargado.")
+      else{
+        print(paste0("numero filas validations$pending antes de descartar posibles acuerdos en login: ",nrow(validations$pending)))
+        # If there's agreement in certain summaries-articles, there's no need of validating them any more
+        if(!is.null(reactAgreements$df)){
+          posDiscard <- reactAgreements$df %>% filter(agreemPerc >= conf$minLevelAgreem[nrow(conf)]) %>%  select(position)
+          print(posDiscard$position)
+          validations$pending <- subset(validations$pending,!(position %in% posDiscard$position))
+        }
+        print(paste0("numero filas validations$pending despues de descartar posibles acuerdos en login: ",nrow(validations$pending)))
+
+        validatedTitlesPos <- expertsValidations %>% filter(username_id == USER$name) %>% filter(idExp == conf$id[nrow(conf)]) %>% select(position) 
+        validations$positions <- as.data.frame(validatedTitlesPos$position)
+        colnames(validations$positions) <- "position"
+        
+        # Randomize titles to validate so different users validate articles in different order
+        if (nrow(validations$positions) >= 1){
+          validations$userTitles <- sample(validations$pending[!(validations$pending$position %in% validations$positions$position),2])
+          validations$pending <- validations$pending %>% anti_join(validations$positions,by="position")
         }
         else{
-          if(is.null(summaries)){
-            message("El fichero con los resúmenes no se ha cargado.")
-          }
-          else{
-            print("admin loged")
-            # print("crea admin articles")
-            # adminArticles <- cbind(articles,summaries$summary)
-            # names(adminArticles)[length(adminArticles)] <- "generatedSummary"
-            # #agregar nivel de cuerdo
-            # if(AGREEM$n == 1){
-            #   dfa <- AGREEMENTS$table %>%  select(position,agreemPerc,agreedAnswer)
-            #   ADMIN_ARTICLES$df <- adminArticles %>% left_join(dfa,by="position")
-          }
+          validations$userTitles <- sample(validations$pending$title)
         }
-      }
-      # } #end if user admin
-    }#if login true
-  })
-  
+        length(paste0("Longitud de user Titles",validations$userTitles))
+      }  
+    }
+  }#if login true
+})
+
   output$body <- renderUI({
-    req(currExpertPendingValid)
     if (USER$login == TRUE) {
       rv$confSum
       rv$confArt
       rv$confAg
       rv$confS
-      
+      rv$newExp
       if(typeUser() == "expert"){
+        #expertValid$flag
         tabItems(
           tabItem(tabName = "information",
                   h4("Acá voy a poner un texto donde se explica el objetivo de la herramienta, el dataset utilizado y el problema con el resumen objectivo del dataset que
@@ -283,7 +239,7 @@ server <- function(input, output, session) {
                       width=12, title="1- TITULO: seleccione el artículo a validar", status = "primary", solidHeader = TRUE, collapsible = FALSE,
                       selectInput("selectTitle",
                                   label=("Seleccione el artículo a validar"),
-                                  choices = articlesValidate()$title))#currExpertPendingValid()$title)) #articlesValidate()$title)) CAMBIARRRRRRRR
+                                  choices = validations$userTitles)) 
                   ),
                   fluidRow(
                     box(
@@ -365,16 +321,16 @@ server <- function(input, output, session) {
                           para llevar a cabo y almacenar los resultados de la validación. "),
                         p(strong("Para configurar un nuevo experimento, "),"deberá deshabilitar el experimento en marcha con el ",
                           strong("botón <<Parar>>")," que aparecerá cuando inicie un experimento."),
-                    )),
+                        )),
                   fluidRow(
                     useShinyjs(),
                     conditionalPanel("false",
                                      box(width = 6,title = "Estado Validación",
                                          radioButtons("stateValid",label="NO MODIFICAR",
                                                       choices=list("Iniciado" = 1, "No iniciado" = 0),
-                                                      selected = conf$init[nrow(conf)]))),
+                                                      selected = conf$init[nrow(conf)]))), 
                     conditionalPanel(
-                      condition = "input.stateValid == 1",
+                    condition = "input.stateValid == 1",
                       box(title="Parar Validación", width = 4, solidHeader = TRUE,status = "primary",
                           actionButton("stopValid", label = "Parar",class="btn-danger" )),
                     ),
@@ -399,25 +355,25 @@ server <- function(input, output, session) {
                                                                     min=1, max=100, value=conf$sampleSize[nrow(conf)]),
                                                        p("El tamaño de la muestra sería (nº): "), verbatimTextOutput("numberRowsSample"),
                                                        actionButton('saveSampleSize',label="Guardar",class="btn-primary"))
-                                               ))
-                                    ),
+                                                   ))
+                                             ),
                                     tabPanel("Acuerdo",
                                              fluidRow(
                                                box(title="Número de validaciones y nivel de acuerdo mínimo por resumen", width = 12, solidHeader = TRUE,status = "primary",
                                                    box(title="Número mínimo de validaciones por resumen", width = 6,
                                                        strong("Mínimo número actual de validaciones por resumen: "), verbatimTextOutput("minValid"),
                                                        sliderInput("minValid",label='Seleccione el número mínimo de validaciones por resumen:',
-                                                                   min=3, max=10, value = conf$minNumValid[nrow(conf)])),
+                                                                   min=3, max=10, value = conf$minNumValid[nrow(conf)])), 
                                                    box(title="Mínimo % de nivel de acuerdo por resumen", width = 6,
                                                        strong("Mínimo % actual de acuerdo por resumen: "), verbatimTextOutput("minAgreem"),
                                                        sliderInput("minAgreem",label='Seleccione el tamaño de la muestra a validar [en %]',
                                                                    min=0, max=100, value = conf$minLevelAgreem[nrow(conf)])),
                                                    box(width = 12,
                                                        actionButton('saveParamAgreem',label="Guardar",class="btn-primary"))
-                                               ))#outer box and fluidrow
-                                    ),
+                                              ))#outer box and fluidrow
+                                             ),
                                     tabPanel("Ficheros",
-                                             fluidRow(
+                                      fluidRow(
                                                box(width = 12, title = "Gestión de ficheros",solidHeader = TRUE,status = "primary",
                                                    box(title="Fichero de artículos a validar", width = 6,
                                                        strong("Nombre del fichero actual:"),
@@ -428,16 +384,11 @@ server <- function(input, output, session) {
                                                    box(title="Fichero de resúmenes a validar", width = 6,
                                                        strong("Nombre del fichero actual:"),
                                                        verbatimTextOutput("currentSummariesFile"),
-                                                       # radioButtons("changeSummariesFile",label="Desea cambiar el fichero de resúmenes a validar ",
-                                                       #              choices=list("Yes" = 1, "No" = 2),
-                                                       #              selected = 2),
-                                                       # conditionalPanel(
-                                                       # condition = "input.changeSummariesFile == 1",
                                                        fileInput("newSummariesFile",label="Subir el nuevo fichero con los resúmenes a validar (solo csv)",
                                                                  multiple = FALSE, accept = ".csv"),
                                                        actionButton('saveNewSumFile',label="Guardar",class="btn-primary"))
-                                               ),#outer box files
-                                             ),#fluidRow
+                                                   ),#outer box files
+                                      ),#fluidRow
                                     )#tabPanel
                         )#tabsetpanel
                     ),#outer box conf
@@ -486,7 +437,7 @@ server <- function(input, output, session) {
                     #                 choices = list("expert", "admin")),
                     #     actionButton("changeTypeUser", label= "Modificar",class="")
                     # ) #box
-                  ), #fluidRow
+                    ), #fluidRow
                   fluidRow(
                     box(width = 12, title = "Listado de usuarios",solidHeader = TRUE,status = "primary",
                         checkboxGroupInput("cgTypeUser", label = "Filtrar por tipo de usuario",
@@ -540,14 +491,14 @@ server <- function(input, output, session) {
       loginpage
     }
   })
-  
+
   # Expert
   ######  
   output$expertGreetingBox <- renderInfoBox({
     infoBox(
       "Hola,",
       USER$name,
-      icon = icon("fal fa-user"),   # ("glyphicon-check", lib = "glyphicon"),
+      icon = icon("fal fa-user",verify_fa = FALSE),   # ("glyphicon-check", lib = "glyphicon"),
       color = "purple"
     )
   })
@@ -555,8 +506,8 @@ server <- function(input, output, session) {
   output$expertValidatedBox <- renderInfoBox({
     infoBox(
       "Validated Summaries",
-      nrow((currExpertValidations())),
-      icon = icon("fal fa-check"),   # ("glyphicon-check", lib = "glyphicon"),
+      nrow((validations$positions)),
+      icon = icon("fal fa-check",verify_fa = FALSE),   # ("glyphicon-check", lib = "glyphicon"),
       color = "olive"
     )
   })
@@ -564,57 +515,128 @@ server <- function(input, output, session) {
   output$expertPendingBox <- renderInfoBox({
     infoBox(
       "Pending Validation",
-      nrow(currExpertPendingValid()),
-      icon = icon("fal fa-edit"), #("glyphicon-edit", lib = "glyphicon"),
+      length(validations$userTitles), 
+      icon = icon("fal fa-edit",verify_fa = FALSE), #("glyphicon-edit", lib = "glyphicon"),
       color = "maroon"
     )
   })
-  
+
   selectedArticleData <- reactive ({
-    req(articlesValidate())
-    # if(!is.null(articlesValidate())){
-    df <- articlesValidate() %>% select(title,url,text,position) %>% filter(title %in% input$selectTitle)
-    message(df)
-    df
-    # }
-    # else{
-    #   shinyalert(title="Salga de la aplicación",
-    #              text="No se ha cargado el fichero con los artículos cuyos
-    #              resúmenes hay que validar",
-    #              type="error")
-    # }
+    if(articlesToValidateExists == 1){
+      message("En selectedArticleData")
+      articlesToValidate %>% select(title,url,text,position,summary) %>% filter(title %in% input$selectTitle)
+    }
+    else{NULL}
   })
-  
-  filteredGeneratedSummary<- reactive ({
-    req(selectedArticleData())
-    req(summariesValidate())
-    
-    # if(!is.null(summariesValidate())){
-    #summariesValidate[[1]][which(articles$title == input$selectTitle)]
-    message("En filteredGeneratedSummary")
-    s <- summariesValidate() %>% filter(position == selectedArticleData()$position) %>% select(summary)
-    message(s$summary)
-    s$summary
-    # }
-    # else{
-    #   shinyalert(title="Salga de la aplicación",
-    #              text="No se han cargado el fichero con los
-    #              resúmenes a validar",
-    #              type="error")
-    # }
-  })
-  
+
   output$articleURL <- renderUI({
+    if(articlesToValidateExists ==1){
     HTML(paste0("<p><b>Para leer el artículo visite: </b><a href=",selectedArticleData()$url,' target="_blank">',selectedArticleData()$url,"</a></p>"))
+    }
+    else{NULL}
   })
   
   output$text <- renderText(selectedArticleData()$text)
   
-  output$generatedSummary <- renderText(filteredGeneratedSummary())
+  output$generatedSummary <- renderText(selectedArticleData()$summary) 
+  
+  ######
+  # SAVE VALIDATION AND UPDATE TITLES LIST
+  observeEvent(input$validateButton,{
+    # Save validation (user's answers)
+    #####
+    validation <- data.frame(matrix(ncol=length(expertsValidations),nrow=1))
+    colnames(validation) <- colnames(expertsValidations)
+    validation$idExp <- conf$id[nrow(conf)]
+    validation$username_id <- USER$name
+    pos <- articlesToValidate %>% filter(title == input$selectTitle)  %>% select(position)
+    validation$position <- pos$position
+    validation$question1 <- as.integer(input$question1)
+    if(input$question1 == 2){
+      validation$question2 <- 0
+      validation$question3 <- 0
+    }
+    else{
+      validation$question2 <- as.integer(input$question2)
+      validation$question3 <- as.integer(input$question3)
+    }
+    validation$date <- format(Sys.Date(),origin="1970-01-01")
+    validation$articleTitle <- input$selectTitle
+    validation$questions  <- as.integer(validation$question1)*100+as.integer(validation$question2)*10+as.integer(validation$question3)
+    print(validation)
+    #####
+    
+    # Add validation to expertsValidations global dataframe
+    #####
+    expertsValidations <<- rbind(expertsValidations,validation)
+    print(expertsValidations)
+    #####
+    
+    # Calculate if with this new answer generates a new agreement for this articles-summary
+    #####
+    print(reactAgreements$df[1:5,1:8])
+    print(nrow(reactAgreements))
+    print(agreements[1:5,1:8])
+    print(nrow(agreements))
+    
+    rowIndex <- which(reactAgreements$df$position == validation$position)
+    colIndex <- which(colnames(reactAgreements$df) == validation$username_id)
+    reactAgreements$df[rowIndex ,colIndex] <<- validation$questions
+    reactAgreements$df$numResp[rowIndex] <<- numExperts()-sum(is.na(reactAgreements$df[rowIndex,2:(numExperts()+1)]))
+    if(reactAgreements$df$numResp[rowIndex] >= conf$minNumValid[nrow(conf)]){
+      comb <- combn(reactAgreements$df[rowIndex,2:(numExperts()+1)],2,simplify = FALSE)
+      reactAgreements$df$posPairs[rowIndex] <<- calcPairs(reactAgreements$df$numResp[rowIndex])
+      n <- numExperts()+8
+      for(val in comb){
+        reactAgreements$df[rowIndex,n] <<- (val[1]==val[2])
+        n <- n+1
+      }
+      reactAgreements$df$agreemCount[rowIndex] <<- rowSums(reactAgreements$df[rowIndex,(numExperts()+8):length(reactAgreements$df)],na.rm = TRUE)
+      reactAgreements$df$agreemPerc[rowIndex] <<- round(reactAgreements$df$agreemCount[rowIndex] / reactAgreements$df$posPairs[rowIndex] * 100,2)
+      if(reactAgreements$df$agreemPerc[rowIndex] < conf$minLevelAgreem[nrow(conf)]){
+        reactAgreements$df$agreedAnswer[rowIndex] <<- 0
+      }
+      else{
+        vec <- table(unname(unlist(reactAgreements$df[rowIndex,2:(numExperts()+1)])))
+        print(vec)
+        reactAgreements$df$agreedAnswer[rowIndex] <<- strtoi(names(which.max(vec)))
+      }
+      reactAgreements$change <- reactAgreements$change + 1
+      agreements <<- reactAgreements$df
+      
+      print(reactAgreements$df[1:5,1:8])
+      print(nrow(reactAgreements))
+      print(agreements[1:5,1:8])
+      print(nrow(agreements))
+      
+      #print(reactAgreements$df[rowIndex,])
+    }
+    #####
+    
+    # Discard other titles that may have reached an agreement with the answers of other users
+    if(!is.null(reactAgreements$df)){
+      posDiscard <- reactAgreements$df %>% filter(agreemPerc >= conf$minLevelAgreem[nrow(conf)]) %>%  select(position)
+      print(posDiscard$position)
+      validations$pending <- subset(validations$pending,!(position %in% posDiscard$position))
+    }
+    
+    #Discard the current validation from the titles that need validation
+    position <- validation$position
+    validations$positions <- as.data.frame(validations$positions)
+    validations$positions <- rbind(validations$positions,position)
+    colnames(validations$positions) <- c("position")
+    validations$userTitles <- validations$pending[!(validations$pending$position %in% validations$positions$position),2]
+    validations$pending <- validations$pending[!(validations$pending$position %in% validations$positions$position),]
+    print(paste0("numero filas validations$pending después de descartar posibles acuerdos: ",nrow(validations$pending)))
+    length(paste0("Longitud de user Titles",validations$userTitles))
+    
+    shinyalert(title="Validación registrada",type="success")
+    updateSelectInput(session,"selectTitle",choices=sample(validations$userTitles))
+  })
   
   # Configure Experiment
   ######
-  
+
   output$numberRowsArticles <- renderPrint({
     rv$confArt
     message("Actualiza number Rows articles")
@@ -662,11 +684,26 @@ server <- function(input, output, session) {
   })
   
   observeEvent(input$startValid,{
-    # Create the table structure to calculate agreements
+    req(samplePositions)
+    # Create the table structures to calculate reactAgreements$df and to save users answers
+      if(articlesToValidateExists == 0){
+        articlesToValidate <<- articles[samplePositions(),c(2,3,5)] # 
+        articlesToValidate$position <<- samplePositions()
+        articlesToValidate$summary <<- summaries[samplePositions(),]
+        saveRDS(articlesToValidate,file=filePathAV)
+        articlesToValidateExists <<- 1
+        #colnames(articlesToValidate$summary) <<- "position"
+        if(agreemExists == 1){
+          posDiscard <- reactAgreements$df %>% filter(agreemPerc >= conf$minLevelAgreem[nrow(conf)]) %>% select(position)
+          articlesToValidate <<- subset(articlesToValidate,!(position %in% posDiscard$position))
+        }
+        print(head(articlesToValidate[1:5,-c(3)]))
+        print(nrow(articlesToValidate))     
+    }
     if(agreemExists == 0){
       nameUsers <- credentials %>% filter(permission == "expert") %>%  select(username_id)
       aux1 <- cbind(samplePositions(),data.frame(matrix(ncol=nrow(nameUsers)+6,nrow=sampleSize())))
-      colnames(aux1)[1] <- "positions"
+      colnames(aux1)[1] <- "position"
       colnames(aux1)[2:(nrow(nameUsers)+1)] <- nameUsers$username_id
       colnames(aux1)[(nrow(nameUsers)+2):length(aux1)] <- c("numResp","posPairs","agreemCount","agreemPerc","agreedAnswer","Auto-Manual") 
       aux1[length(aux1)] <- "Automatic"
@@ -674,13 +711,22 @@ server <- function(input, output, session) {
       aux2 <- data.frame(matrix(NA,ncol=nc,nrow=sampleSize()))
       colN <- rep("P",nc)
       colnames(aux2) <- paste0(colN,c(1:nc))
-      agreements <<- cbind(aux1,aux2)
-      print(agreements)
+      reactAgreements$df <<- cbind(aux1,aux2)
+      print(reactAgreements$df)
       agreemExists <<- 1
+      rv$init <<- rv$init + 1
+      reactAgreements$change <- reactAgreements$change + 1
     }
+    if(expValidExists == 0){
+      expertsValidations <<- data.frame(matrix(ncol=9,nrow=0))
+      colnames(expertsValidations) <<- c( "idExp","position","question1","question2","question3","questions","username_id","date","articleTitle")
+      print(expertsValidations)
+      expValidExists <<- 1
+    }
+    
     # Show the Stop button and disable configuration buttons
     conf$init[nrow(conf)] <<- 1
-    conf$dateInit[nrow(conf)] <<- format(as.Date(Sys.Date(),origin="1970-01-01"))
+    conf$dateInit[nrow(conf)] <<- format(Sys.Date(),origin="1970-01-01")
     updateRadioButtons(session,"stateValid",
                        choices=list("Yes" = 1, "No" = 0),
                        selected = 1)
@@ -691,7 +737,7 @@ server <- function(input, output, session) {
     shinyjs::disable("startValid")
     shinyjs::enable("stopValid")
   })
-  
+
   observeEvent(input$stopValid,{
     updateRadioButtons(session,"stateValid",
                        choices=list("Yes" = 1, "No" = 0),
@@ -703,27 +749,28 @@ server <- function(input, output, session) {
     shinyjs::enable("saveParamAgreem")
     shinyjs::enable("saveSampleSize")
     nrowC <- nrow(conf)
-    conf$dateStop[nrowC] <<- format(as.Date(Sys.Date(),origin="1970-01-01"))
+    conf$dateStop[nrowC] <<- format(Sys.Date(),origin="1970-01-01")
     newConf <- conf[nrowC,]
     newConf$id <- conf$id[nrowC]+1
     newConf$init <- 0
     newConf$dateInit <- NA
     newConf$dateStop <- NA
     conf <<- rbind(conf,newConf)
-    #save table agreements for this experiment, create path for the new one and set 
-    #flag to create the table when new experiments starts --> --> --> SOL CHEQUEAR DESPUES DE GUARDAR VALIDACIONES USUARIOS
-    write.csv(x=agreements,file=filePathAg,row.names = FALSE)
-    filePathAg <<- file.path(outputDir,paste0("agreements-",conf$id[nrow(conf)],".csv"))
+    #save data of this experiment, create paths for the new ones 
+    agreements <<- reactAgreements$df
+    saveRDS(agreements,file=filePathAg)
+    filePathAg <<- file.path(outputDir,paste0("agreements-",conf$id[nrow(conf)],".rds"))
     agreemExists <<- 0
-    # merge new users validations and filter by new idExp --> --> --> SOL CHEQUEAR DESPUES DE GUARDAR VALIDACIONES USUARIOS
-    expertsValidations <<- merge(expertsValidations,expertsValidationsCurrExp,by="idExp")
-    expertsValidationsCurrExp <<- as.data.frame(expertsValidations %>% filter(idExp==conf$id[nrow(conf)]))
-    print(expertsValidations)
-    print(expertsValidationsCurrExp)
-    
+    reactAgreements$change <- reactAgreements$change + 1
+    saveRDS(expertsValidations,file=filePathEV)
+    filePathEV <- file.path(outputDir,paste0("validations-",conf$id[nrow(conf)],".rds"))
+    expValidExists <<- 0
+    saveRDS(articlesToValidate,file=filePathAV)
+    filePathAV <- file.path(inputDir,paste0("articlesValidate-",conf$id[nrow(conf)],".rds"))
+    rv$newExp <- rv$newExp + 1
+    rv$init <<- rv$init + 1
   })
   
-  #####
   observeEvent(input$saveSampleSize,{
     if(conf$init[nrow(conf)]==0){
       print("Se va a cambiar el tamaño de la muestra en conf")
@@ -737,7 +784,6 @@ server <- function(input, output, session) {
     }
   })
   
-  #####
   observeEvent(input$saveParamAgreem,{
     if(conf$init[nrow(conf)]==0){
       print("Se van a cambiar los parametros de configuracion para calcular el acuerdo")
@@ -753,7 +799,6 @@ server <- function(input, output, session) {
     }
   })
   
-  #####
   observeEvent(input$saveNewArtFile,{
     if(conf$init[nrow(conf)]==0){
       print("Se va a cambiar el fichero de artículos a validar")
@@ -778,7 +823,6 @@ server <- function(input, output, session) {
     }
   })
   
-  #####
   observeEvent(input$saveNewSumFile,{
     if(conf$init[nrow(conf)]==0){
       print("Se va a cambiar el fichero de resúmenes a validar")
@@ -811,7 +855,6 @@ server <- function(input, output, session) {
     datatable(data, options = list(autoWidth = TRUE,searching = FALSE))
   })
   
-  #####
   observeEvent(input$saveNewUser,{
     if(input$usernameInput %in% credentials$username_id){
       shinyalert(title="Nombre de usuario repetido, elija otro",closeOnClickOutside = TRUE,type="error")
@@ -828,18 +871,29 @@ server <- function(input, output, session) {
         print(credentials)
         rv$cred <<- rv$cred + 1
         shinyalert(title="Nuevo usuario creado",closeOnClickOutside = TRUE,type="success")
+        
+        print(reactAgreements$df[1:5,1:8])
+        print(nrow(reactAgreements))
+        print(agreements[1:5,1:8])
+        print(nrow(agreements))
+        
         # Add new user to agreements table if exists and only if new user is an expert
         if((agreemExists == 1) && (newUser$permission == "expert")){
           newColUser <- rep(NA,sampleSize())
-          agreements <<- add_column(agreements,newColUser,.after = numExperts()+1) #library(tibble)
-          colnames(agreements)[numExperts()+1] <<- input$usernameInput
+          reactAgreements$df <<- add_column(reactAgreements$df,newColUser,.after = numExperts()+1) #library(tibble)
+          colnames(reactAgreements$df)[numExperts()+1] <<- input$usernameInput
           #difCol <-numExperts() # En realidad es numExperts() - 1 pero todavía no se llegó a actualizar el numExperts() --> si se actualiza
-          agreements <<- cbind(as.data.frame(agreements),as.data.frame(matrix(NA,ncol=numExperts()-1,nrow=sampleSize())))
+          reactAgreements$df <<- cbind(as.data.frame(reactAgreements$df),as.data.frame(matrix(NA,ncol=numExperts()-1,nrow=sampleSize())))
           nc<-numCols(numExperts())
           colN <- rep("P",nc)
-          colnames(agreements)[(length(agreements)-nc+1):length(agreements)] <<- paste0(colN,c(1:nc))
+          colnames(reactAgreements$df)[(length(reactAgreements$df)-nc+1):length(reactAgreements$df)] <<- paste0(colN,c(1:nc))
+          agreements <<- reactAgreements$df
+          reactAgreements$change <- reactAgreements$change + 1
         }
-        print(agreements)
+        print(reactAgreements$df[1:5,1:8])
+        print(nrow(reactAgreements))
+        print(agreements[1:5,1:8])
+        print(nrow(agreements))
       }
       else
       {
@@ -864,6 +918,7 @@ server <- function(input, output, session) {
   #   }
   # })
   
+  #####
   observeEvent(input$changePswUser,{
     if(input$pswInputChg != ""){
       print("entro a if psw")
@@ -875,7 +930,7 @@ server <- function(input, output, session) {
       shinyalert(title="Introduzca una contraseña para continuar",closeOnClickOutside = TRUE,type="error")
     }
   })
-  
+
   #Save workspace
   ######
   observeEvent(input$saveImage,{
@@ -887,5 +942,9 @@ server <- function(input, output, session) {
     shinyjs::removeClass(id = "UpdateAnimateSaveImage", class = "loading dots")
   })
   
-  
+  # session$onSessionEnded(function(){
+  #   rv$mergeEV <- rv$mergeEV +1
+  #   expertsValidations <<- merge(expertsValidations,currExpertValidations(),all = TRUE)
+  #   write.csv(x=expertsValidations,file=filePathEV,row.names = FALSE) 
+  # })
 }
