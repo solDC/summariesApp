@@ -185,19 +185,18 @@ server <- function(input, output, session) {
         print("está en conf$init[nrow(conf)] == 0")
       }
       else{
-        validatedTitlesPos <- expertsValidations %>% filter(username_id == USER$name) %>% filter(idExp == conf$id[nrow(conf)]) %>% select(position) 
-        validations$positions <- as.data.frame(validatedTitlesPos$position)
-        colnames(validations$positions) <- "position"
-        print((validations$positions))
-        
-        print(paste0("numero filas validations$pending antes de descartar posibles acuerdos: ",nrow(validations$pending)))
+        print(paste0("numero filas validations$pending antes de descartar posibles acuerdos en login: ",nrow(validations$pending)))
         # If there's agreement in certain summaries-articles, there's no need of validating them any more
         if(!is.null(agreements)){
           posDiscard <- agreements %>% filter(agreemPerc >= conf$minLevelAgreem[nrow(conf)]) %>%  select(position)
           print(posDiscard$position)
           validations$pending <- subset(validations$pending,!(position %in% posDiscard$position))
         }
-        print(paste0("numero filas validations$pending despues de descartar posibles acuerdos: ",nrow(validations$pending)))
+        print(paste0("numero filas validations$pending despues de descartar posibles acuerdos en login: ",nrow(validations$pending)))
+
+        validatedTitlesPos <- expertsValidations %>% filter(username_id == USER$name) %>% filter(idExp == conf$id[nrow(conf)]) %>% select(position) 
+        validations$positions <- as.data.frame(validatedTitlesPos$position)
+        colnames(validations$positions) <- "position"
         
         # Randomize titles to validate so different users validate articles in different order
         if (nrow(validations$positions) >= 1){
@@ -207,6 +206,7 @@ server <- function(input, output, session) {
         else{
           validations$userTitles <- sample(validations$pending$title)
         }
+        length(paste0("Longitud de user Titles",validations$userTitles))
       }  
     }
   }#if login true
@@ -568,16 +568,9 @@ server <- function(input, output, session) {
     #####
     expertsValidations <<- rbind(expertsValidations,validation)
     print(expertsValidations)
-    position <- validation$position
-    validations$positions <- as.data.frame(validations$positions)
-    validations$positions <- rbind(validations$positions,position)
-    colnames(validations$positions) <- c("position")
-    validations$userTitles <- validations$pending[!(validations$pending$position %in% validations$positions$position),2]
-    validations$pending <- validations$pending[!(validations$pending$position %in% validations$positions$position),]
-    print(paste0("numero filas validations$pending antes de descartar posibles acuerdos: ",nrow(validations$pending)))
     #####
     
-    # Calculate if with this new answer a new agreement has been reached
+    # Calculate if with this new answer generates a new agreement for this articles-summary
     #####
     rowIndex <- which(agreements$position == validation$position)
     colIndex <- which(colnames(agreements) == validation$username_id)
@@ -593,9 +586,6 @@ server <- function(input, output, session) {
       }
       agreements$agreemCount[rowIndex] <<- rowSums(agreements[rowIndex,(numExperts()+8):length(agreements)],na.rm = TRUE)
       agreements$agreemPerc[rowIndex] <<- round(agreements$agreemCount[rowIndex] / agreements$posPairs[rowIndex] * 100,2)
-      # agreements$agreemPerc[rowIndex] <<- with(agreements,
-      #                                         ifelse(agreements$posPairs[rowIndex] >= conf$minNumValid[nrow(conf)],
-      #                                                round(agreements$agreemCount[rowIndex] / agreements$posPairs[rowIndex] * 100,2), 0))
       if(agreements$agreemPerc[rowIndex] < conf$minLevelAgreem[nrow(conf)]){
         agreements$agreedAnswer[rowIndex] <<- 0
       }
@@ -606,13 +596,26 @@ server <- function(input, output, session) {
       }
       #print(agreements[rowIndex,])
     }
+    #####
+    
+    # Discard other titles that may have reached an agreement with the answers of other users
     if(!is.null(agreements)){
       posDiscard <- agreements %>% filter(agreemPerc >= conf$minLevelAgreem[nrow(conf)]) %>%  select(position)
       print(posDiscard$position)
       validations$pending <- subset(validations$pending,!(position %in% posDiscard$position))
-      
     }
+    
+    #Discard the current validation from the titles that need validation
+    position <- validation$position
+    validations$positions <- as.data.frame(validations$positions)
+    validations$positions <- rbind(validations$positions,position)
+    colnames(validations$positions) <- c("position")
+    validations$userTitles <- validations$pending[!(validations$pending$position %in% validations$positions$position),2]
+    validations$pending <- validations$pending[!(validations$pending$position %in% validations$positions$position),]
     print(paste0("numero filas validations$pending después de descartar posibles acuerdos: ",nrow(validations$pending)))
+    length(paste0("Longitud de user Titles",validations$userTitles))
+    
+    shinyalert(title="Validación registrada",type="success")
     updateSelectInput(session,"selectTitle",choices=sample(validations$userTitles))
   })
   
