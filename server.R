@@ -60,6 +60,7 @@ server <- function(input, output, session) {
   
   typeUser <- reactive ({
     req(USER$login)
+    rv$cred
     
     credentials["permission"][which(credentials$username_id==USER$name),]
   })
@@ -168,7 +169,7 @@ server <- function(input, output, session) {
   colnames(positions) <- c("position")
   userTitles <- data.frame(matrix(ncol=1,nrow=0))
   colnames(userTitles) <- c("title")
-  validations <- reactiveValues(positions = positions, userTitles = userTitles, pending = articlesToValidate ) #validations$positions
+  validations <- reactiveValues(positions = positions, userTitles = userTitles, pending = articlesToValidate, flag = 0 ) #validations$positions
   
   #####
   observeEvent(input$login,{
@@ -214,13 +215,8 @@ server <- function(input, output, session) {
   
   output$body <- renderUI({
     if (USER$login == TRUE) {
-      rv$confSum
-      rv$confArt
-      rv$confAg
-      rv$confS
-      rv$newExp
       if(typeUser() == "expert"){
-        #expertValid$flag
+        validations$flag
         tabItems(
           tabItem(tabName = "information",
                   h4("Acá voy a poner un texto donde se explica el objetivo de la herramienta, el dataset utilizado y el problema con el resumen objectivo del dataset que
@@ -307,6 +303,12 @@ server <- function(input, output, session) {
       }#fin if si el usuario es el expert
       else{
         #Usuario admin
+        rv$confSum
+        rv$confArt
+        rv$confAg
+        rv$confS
+        rv$newExp
+        rv$cred
         tabItems(
           tabItem(tabName = "manageEvalSummaries", class = "active",
                   fluidRow(
@@ -423,13 +425,13 @@ server <- function(input, output, session) {
                         actionButton("saveNewUser", label = "Crear Usuario", class="")),
                     box(width = 4, title = "Modificar contraseña usuario",solidHeader = TRUE,status = "primary",
                         selectInput("usernameInputChgPsw", label = "Seleccione el usuario cuya contraseña quiere modificar",
-                                    choices = credentials$username_id),
+                                    choices = sort(credentials$username_id)),
                         textInput("pswInputChg", label = "Ingrese la nueva contraseña", value = ""),
                         actionButton("changePswUser", label= "Modificar",class="")
                     ), #box
                     box(width = 4, title = "Modificar tipo de usuario",solidHeader = TRUE,status = "primary",
                         selectInput("usernameInputChgType", label = "Seleccione el usuario cuyos permisos quiera modificar",
-                                    choices = credentials$username_id),
+                                    choices = sort(credentials$username_id)),
                         selectInput("typeUserInputChgType", label = "Seleccione el nuevo tipo de usuario",
                                     choices = list("expert", "admin")),
                         actionButton("changeTypeUser", label= "Modificar",class="")
@@ -621,6 +623,7 @@ server <- function(input, output, session) {
     #####
     
     # Show confirmation to user and update list of titles pending to validate
+    validations$flag <- validations$flag +1
     shinyalert(title="Validación registrada",type="success")
     updateSelectInput(session,"selectTitle",choices=sample(validations$userTitles))
   })
@@ -850,6 +853,7 @@ server <- function(input, output, session) {
     datatable(data, options = list(autoWidth = TRUE,searching = FALSE))
   })
   
+  #####
   observeEvent(input$saveNewUser,{
     shinyjs::disable("saveNewUser")
     if(input$usernameInput %in% credentials$username_id){
@@ -866,7 +870,6 @@ server <- function(input, output, session) {
         credentials <<- rbind(credentials,newUser)
         print(paste0("Nueov usuario agregado",credentials$username_id))
         print(credentials)
-        rv$cred <<- rv$cred + 1
         
         # Add new user to agreements table if exists and only if new user is an expert
         if((agreemExists == 1) && (newUser$permission == "expert")){
@@ -888,10 +891,15 @@ server <- function(input, output, session) {
         shinyalert(title="Faltan datos, no se puede crear el usuario",closeOnClickOutside = TRUE,type="error")
       }
     }
+    updateSelectInput(session,"usernameInputChgPsw",choices=sort(credentials$username_id))
+    updateSelectInput(session,"usernameInputChgType",choices=sort(credentials$username_id))
+    updateTextInput(session, "usernameInput",value="")
+    updateTextInput(session, "pswInput",value="")
+    rv$cred <<- rv$cred + 1
     shinyjs::enable("saveNewUser")
   })
   
-  ####
+  #####
   observeEvent(input$changeTypeUser,{
     if(conf$init[nrow(conf)]==0){
       currentType <- credentials["permission"][which(credentials$username_id==input$usernameInputChgType),]
