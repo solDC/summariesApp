@@ -427,13 +427,13 @@ server <- function(input, output, session) {
                         textInput("pswInputChg", label = "Ingrese la nueva contraseña", value = ""),
                         actionButton("changePswUser", label= "Modificar",class="")
                     ), #box
-                    # box(width = 4, title = "Modificar tipo de usuario",solidHeader = TRUE,status = "primary",
-                    #     selectInput("usernameInputChgType", label = "Seleccione el usuario cuyos permisos quiera modificar",
-                    #                 choices = credentials$username_id),
-                    #     selectInput("typeUserInputChgType", label = "Seleccione el nuevo tipo de usuario",
-                    #                 choices = list("expert", "admin")),
-                    #     actionButton("changeTypeUser", label= "Modificar",class="")
-                    # ) #box
+                    box(width = 4, title = "Modificar tipo de usuario",solidHeader = TRUE,status = "primary",
+                        selectInput("usernameInputChgType", label = "Seleccione el usuario cuyos permisos quiera modificar",
+                                    choices = credentials$username_id),
+                        selectInput("typeUserInputChgType", label = "Seleccione el nuevo tipo de usuario",
+                                    choices = list("expert", "admin")),
+                        actionButton("changeTypeUser", label= "Modificar",class="")
+                    ) #box
                   ), #fluidRow
                   fluidRow(
                     box(width = 12, title = "Listado de usuarios",solidHeader = TRUE,status = "primary",
@@ -566,32 +566,22 @@ server <- function(input, output, session) {
     # Add validation to expertsValidations global dataframe
     #####
     expertsValidations <<- rbind(expertsValidations,validation)
-    print(expertsValidations)
     #####
     
     # Calculate if with this new answer generates a new agreement for this articles-summary
     #####
-    
-    print(agreements)
-    print(nrow(agreements))
-    print(ncol(agreements))
-    
     rowIndex <- which(agreements$position == validation$position)
     colIndex <- which(colnames(agreements) == validation$username_id)
     agreements[rowIndex ,colIndex] <<- validation$questions
-    print("pasa por aquí 1")
     agreements$numResp[rowIndex] <<- numExperts()-sum(is.na(agreements[rowIndex,2:(numExperts()+1)]))
-    print("pasa por aquí 2")
     if(agreements$numResp[rowIndex] >= conf$minNumValid[nrow(conf)]){
       comb <- combn(agreements[rowIndex,2:(numExperts()+1)],2,simplify = FALSE)
       agreements$posPairs[rowIndex] <<- calcPairs(agreements$numResp[rowIndex])
-      print("pasa por aquí 3")
       n <- numExperts()+8
       for(val in comb){
         agreements[rowIndex,n] <<- (val[1]==val[2])
         n <- n+1
       }
-      print("pasa por aquí 4")
       agreements$agreemCount[rowIndex] <<- rowSums(agreements[rowIndex,(numExperts()+8):length(agreements)],na.rm = TRUE)
       agreements$agreemPerc[rowIndex] <<- round(agreements$agreemCount[rowIndex] / agreements$posPairs[rowIndex] * 100,2)
       if(agreements$agreemPerc[rowIndex] < conf$minLevelAgreem[nrow(conf)]){
@@ -602,22 +592,24 @@ server <- function(input, output, session) {
         print(vec)
         agreements$agreedAnswer[rowIndex] <<- strtoi(names(which.max(vec)))
       }
-      print("pasa por aquí 5")
       #print(agreements[rowIndex,])
-      print(agreements)
-      print(nrow(agreements))
-      print(ncol(agreements))
+      # print(agreements)
+      # print(nrow(agreements))
+      # print(ncol(agreements))
     }
     #####
     
     # Discard other titles that may have reached an agreement with the answers of other users
+    #####
     if(!is.null(agreements)){
       posDiscard <- agreements %>% filter(agreemPerc >= conf$minLevelAgreem[nrow(conf)]) %>%  select(position)
       print(posDiscard$position)
       validations$pending <- subset(validations$pending,!(position %in% posDiscard$position))
     }
+    #####
     
-    #Discard the current validation from the titles that need validation
+    # Discard the current validation from the titles that need validation
+    #####
     position <- validation$position
     validations$positions <- as.data.frame(validations$positions)
     validations$positions <- rbind(validations$positions,position)
@@ -626,7 +618,9 @@ server <- function(input, output, session) {
     validations$pending <- validations$pending[!(validations$pending$position %in% validations$positions$position),]
     print(paste0("numero filas validations$pending después de descartar posibles acuerdos: ",nrow(validations$pending)))
     length(paste0("Longitud de user Titles",validations$userTitles))
+    #####
     
+    # Show confirmation to user and update list of titles pending to validate
     shinyalert(title="Validación registrada",type="success")
     updateSelectInput(session,"selectTitle",choices=sample(validations$userTitles))
   })
@@ -680,6 +674,7 @@ server <- function(input, output, session) {
     conf$fileArticles[nrow(conf)]
   })
   
+  ##### Start Experiment
   observeEvent(input$startValid,{
     req(samplePositions)
     # Create the table structures to calculate agreements and to save users answers
@@ -689,13 +684,12 @@ server <- function(input, output, session) {
       articlesToValidate$summary <<- summaries[samplePositions(),]
       saveRDS(articlesToValidate,file=filePathAV)
       articlesToValidateExists <<- 1
-      #colnames(articlesToValidate$summary) <<- "position"
       if(agreemExists == 1){
         posDiscard <- agreements %>% filter(agreemPerc >= conf$minLevelAgreem[nrow(conf)]) %>% select(position)
         articlesToValidate <<- subset(articlesToValidate,!(position %in% posDiscard$position))
       }
-      print(head(articlesToValidate[1:5,-c(3)]))
-      print(nrow(articlesToValidate))     
+      #print(head(articlesToValidate[1:5,-c(3)]))
+      #print(nrow(articlesToValidate))     
     }
     if(agreemExists == 0){
       nameUsers <- credentials %>% filter(permission == "expert") %>%  select(username_id)
@@ -735,9 +729,11 @@ server <- function(input, output, session) {
     shinyjs::disable("saveParamAgreem")
     shinyjs::disable("saveSampleSize")
     shinyjs::disable("startValid")
+    shinyjs::disable("changeTypeUser")
     shinyjs::enable("stopValid")
   })
   
+  ##### End Experiment
   observeEvent(input$stopValid,{
     updateRadioButtons(session,"stateValid",
                        choices=list("Yes" = 1, "No" = 0),
@@ -748,6 +744,7 @@ server <- function(input, output, session) {
     shinyjs::enable("saveNewArtFile")
     shinyjs::enable("saveParamAgreem")
     shinyjs::enable("saveSampleSize")
+    shinyjs::enable("changeTypeUser")
     nrowC <- nrow(conf)
     conf$dateStop[nrowC] <<- format(Sys.Date(),origin="1970-01-01")
     newConf <- conf[nrowC,]
@@ -757,10 +754,6 @@ server <- function(input, output, session) {
     newConf$dateStop <- NA
     conf <<- rbind(conf,newConf)
     #save data of this experiment, create paths for the new ones 
-    
-    print(agreements[1:5,1:8])
-    print(nrow(agreements))
-    
     saveRDS(agreements,file=filePathAg)
     filePathAg <<- file.path(outputDir,paste0("agreements-",conf$id[nrow(conf)],".rds"))
     agreemExists <<- 0
@@ -877,28 +870,17 @@ server <- function(input, output, session) {
         
         # Add new user to agreements table if exists and only if new user is an expert
         if((agreemExists == 1) && (newUser$permission == "expert")){
-          
-          print(nrow(agreements))
-          print(ncol(agreements))
-          
           newColUser <- rep(NA,sampleSize())
           agreements <<- add_column(agreements,newColUser,.after = numExperts()+1) #library(tibble)
           agreements[numExperts()+2] <<- agreements[numExperts()+1]
           agreements[numExperts()+1] <<- rep(NA,sampleSize())
           colnames(agreements)[numExperts()+1] <<- input$usernameInput
           colnames(agreements)[numExperts()+2] <<- "numResp"
-          
-          #difCol <-numExperts() # En realidad es numExperts() - 1 pero todavía no se llegó a actualizar el numExperts() --> si se actualiza
           agreements <<- cbind(as.data.frame(agreements),as.data.frame(matrix(NA,ncol=numExperts()-1,nrow=sampleSize())))
           nc<-numCols(numExperts())
           colN <- rep("P",nc)
           colnames(agreements)[(length(agreements)-nc+1):length(agreements)] <<- paste0(colN,c(1:nc))
         }
-        #print(agreements)
-        print(agreements)
-        print(nrow(agreements))
-        print(ncol(agreements))
-
         shinyalert(title="Nuevo usuario creado",closeOnClickOutside = TRUE,type="success")
       }
       else
@@ -909,21 +891,27 @@ server <- function(input, output, session) {
     shinyjs::enable("saveNewUser")
   })
   
-  #####
-  # observeEvent(input$changeTypeUser,{
-  #   currentType <- credentials["permission"][which(credentials$username_id==input$usernameInputChgType),] 
-  #   newType <- input$typeUserInputChgType
-  #   if( newType != currentType){
-  #     print("entro a if cambio tipo usuario")
-  #     credentials["permission"][which(credentials$username_id==input$usernameInputChgType),] <<- newType
-  #     rv$cred <<- rv$cred + 1
-  #     shinyalert(title="El tipo de usuario guardados", 
-  #                text="El usuario deberá salir de la sesión para que los cambios se actualicen",closeOnClickOutside = TRUE,type="success")
-  #   }
-  #   else{
-  #     shinyalert(title="Introduzca un tipo de usuario diferente para continuar",closeOnClickOutside = TRUE,type="error")
-  #   }
-  # })
+  ####
+  observeEvent(input$changeTypeUser,{
+    if(conf$init[nrow(conf)]==0){
+      currentType <- credentials["permission"][which(credentials$username_id==input$usernameInputChgType),]
+      newType <- input$typeUserInputChgType
+      if( newType != currentType){
+        print("entro a if cambio tipo usuario")
+        credentials["permission"][which(credentials$username_id==input$usernameInputChgType),] <<- newType
+        rv$cred <<- rv$cred + 1
+        shinyalert(title="El tipo de usuario guardados",
+                   text="El usuario deberá salir de la sesión para que los cambios se actualicen",closeOnClickOutside = TRUE,type="success")
+      }
+      else{
+        shinyalert(title="Introduzca un tipo de usuario diferente para continuar",closeOnClickOutside = TRUE,type="error")
+      }
+    }
+    else{
+      shinyalert(title="No se pueden realizar modificaciones en el tipo de usuario mientras hay un experimento de validación activo", 
+                 closeOnClickOutside = TRUE, type="error")
+    }
+  })
   
   #####
   observeEvent(input$changePswUser,{
@@ -949,9 +937,4 @@ server <- function(input, output, session) {
     shinyjs::removeClass(id = "UpdateAnimateSaveImage", class = "loading dots")
   })
   
-  # session$onSessionEnded(function(){
-  #   rv$mergeEV <- rv$mergeEV +1
-  #   expertsValidations <<- merge(expertsValidations,currExpertValidations(),all = TRUE)
-  #   write.csv(x=expertsValidations,file=filePathEV,row.names = FALSE) 
-  # })
 }
