@@ -739,6 +739,8 @@ server <- function(input, output, session) {
       articlesToValidate$position <<- samplePositions()
       articlesToValidate$summary <<- summaries[samplePositions(),]
       saveRDS(articlesToValidate,file=filePathAV)
+      rm(articles)
+      rm(summaries)
       articlesToValidateExists <<- 1
       if(agreemExists == 1){
         posDiscard <- agreements %>% filter(agreemPerc >= conf$minLevelAgreem[nrow(conf)]) %>% select(position)
