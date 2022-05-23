@@ -69,7 +69,7 @@ server <- function(input, output, session) {
   numArticles <<- reactive({
     rv$confArt
     message(" calcula numArticles")
-    nrow(articles)
+    numArticlesG #nrow(articles)
   })
   
   sampleSize <<- reactive({

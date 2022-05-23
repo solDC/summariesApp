@@ -33,6 +33,7 @@ credentials <- loadCSV(filePathCd)
 
 if( !is.null(conf)){
     articles <- loadCSV(paste0(inputDir,conf$fileArticles[nrow(conf)]))
+    numArticlesG <- nrow(articles)
     summaries <- loadCSV(paste0(inputDir,conf$fileSummaries[nrow(conf)])) 
 }else{
   message("Salta de la aplicación. Se necesita el fichero de configuración para continuar.")
