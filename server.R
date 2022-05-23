@@ -427,11 +427,12 @@ server <- function(input, output, session) {
                   ), #fluidRow
                   fluidRow(               
                     box(width = 12, title="Preguntas realizadas en el experimento",solidHeader = TRUE, status="primary",
-                        p("En cada experimento, ", strong(" se realizan tres preguntas "),"al usuario ",
+                        p("En cada experimento, ", strong(" se realizan entre una y tres preguntas "),"al usuario ",
                           strong("sobre el resumen ") ,"generado que pueden ser ",strong("verdaderas o falsas"),":"),
                         p(strong("Pregunta 1: "),"El resumen generado: ¿trasmite la idea general del artículo? Verdadero/Falso"),
-                        p(strong("Pregunta 2: "),"Solo si la pregunta 1 es Verdadera: el resumen, ¿contiene información inconsistente con el artículo? Verdadero/Falso"),
-                        p(strong("Pregunta 3: "),"Solo si la pregunta 1 es Verdadera: el resumen, ¿contiene alguna información que no puede ser inferida del artículo? Verdadero/Falso"),
+                        p(strong("Solo si la pregunta 1 es Verdadera:")),
+                        p(strong("Pregunta 2: "),"El resumen, ¿contiene información inconsistente con el artículo? Verdadero/Falso"),
+                        p(strong("Pregunta 3: "),"El resumen, ¿contiene alguna información que no puede ser inferida del artículo? Verdadero/Falso"),
                     )),
                   fluidRow(
                     box(width = 12, title= "Principales indicadores",solidHeader = TRUE, status="primary",
@@ -484,7 +485,19 @@ server <- function(input, output, session) {
           #Tab manageData
           ##### 
           tabItem(tabName = "manageData",
-                  box(width = 6, title = "Guardar workspace",solidHeader = TRUE,status = "primary",
+                  box(width = 6, title = "Ficheros de entrada a la app (inputs)",solidHeader = TRUE,status = "primary",
+                      selectInput("selectInputFile", label = "Seleccione el fichero que quiera descargar", 
+                                  choices = list.files(inputDir), 
+                                  selected = 1),
+                      downloadButton("downloadInputFile",label = "Descargar")
+                  ),
+                  box(width = 6, title = "Ficheros de entrada a la app (inputs)",solidHeader = TRUE,status = "primary",
+                      selectInput("selectOutputFile", label = "Seleccione el fichero que quiera descargar", 
+                                  choices = list.files(outputDir), 
+                                  selected = 1),
+                      downloadButton("downloadOutputFile",label = "Descargar")
+                  ),
+                  box(width = 6, title = "Guardar workspace actual",solidHeader = TRUE,status = "primary",
                       #actionButton("saveImage", label = "Guardar")
                       actionButton("saveImage", span("Guardar Imagen en disco", id="UpdateAnimateSaveImage", class="")),
                       tags$head(tags$style(type="text/css", '
@@ -805,7 +818,7 @@ server <- function(input, output, session) {
     filePathEV <- file.path(outputDir,paste0("validations-",conf$id[nrow(conf)],".rds"))
     expValidExists <<- 0
     saveRDS(articlesToValidate,file=filePathAV)
-    filePathAV <- file.path(inputDir,paste0("articlesValidate-",conf$id[nrow(conf)],".rds"))
+    filePathAV <- file.path(outputDir,paste0("articlesValidate-",conf$id[nrow(conf)],".rds"))
     rv$newExp <- rv$newExp + 1
     rv$init <<- rv$init + 1
   })
@@ -891,12 +904,9 @@ server <- function(input, output, session) {
   filesAdmin <- reactiveValues(agreem = NULL, conf = conf, index = nrow(conf), chgConf = 0)
   
   observeEvent(input$selectIdBtn,{
-    filesAdmin$index <- conf %>% filter(id == input$selectIdExp) %>% select(id) 
-    message(paste0("indice: ",filesAdmin$index))
+    filesAdmin$index <- conf %>% filter(id == input$selectIdExp) %>% select(id)
     if(conf$init[filesAdmin$index] != 0){
       filesAdmin$agreem <- readRDS(file.path(outputDir,paste0("agreements-",conf$id[filesAdmin$index],".rds")))
-      print(paste0("Numero de filas agreements",nrow(filesAdmin$agreem)))
-      #filesAdmin$valid <- readRDS(file.path(outputDir,paste0("validations-",conf$id[filesAdmin$index],".rds")))
     }
   })
   
@@ -1007,7 +1017,9 @@ server <- function(input, output, session) {
         n <- n+1
       }
       tableR <- cbind(tableR,answers)
-      datatable(tableR,options = list(autoWidth = TRUE,searching = TRUE))
+      DT::datatable(tableR,extensions = 'Buttons', 
+                    options = list(autoWidth = TRUE, scrollX=TRUE, searching = FALSE, paging = TRUE, dom = 'Bfrtip', buttons= c('copy', 'csv', 'excel')),
+                    class = "display")
     }
   })
   
@@ -1102,6 +1114,33 @@ server <- function(input, output, session) {
   
   #Save workspace
   ######
+  
+  dataCSV <- reactive({
+    read.csv(paste0(inputDir,input$selectInputFile))
+  })
+  
+  output$downloadInputFile <- downloadHandler(
+    filename = function() {
+      paste(input$selectInputFile, sep = "")
+    },
+    content = function(con) {
+      write.csv(dataCSV(), con, row.names = TRUE)
+    }
+  )
+  
+  dataRDS <- reactive({
+    readRDS(paste0(outputDir,input$selectOutputFile))
+  })
+  
+  output$downloadOutputFile <- downloadHandler(
+    filename = function() {
+      paste(input$selectOutputFile, sep = "")
+    },
+    content = function(con) {
+      saveRDS(dataRDS(), con)
+    }
+  )
+  
   observeEvent(input$saveImage,{
     shinyjs::addClass(id = "UpdateAnimateSaveImage", class = "loading dots")
     shinyjs::disable("saveImage")

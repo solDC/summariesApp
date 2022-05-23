@@ -38,11 +38,13 @@ if( !is.null(conf)){
   message("Salta de la aplicación. Se necesita el fichero de configuración para continuar.")
 }
 
-filePathAV <- file.path(inputDir,paste0("articlesToValidate-",conf$id[nrow(conf)],".rds"))
+filePathAV <- file.path(outputDir,paste0("articlesToValidate-",conf$id[nrow(conf)],".rds"))
 if(file.exists(filePathAV)){
   articlesToValidate <- readRDS(filePathAV)
   articlesToValidateExists <- 1
   numArticlesToValidate <- nrow(articlesToValidate)
+  rm(articles)
+  rm(summaries)
 }else{
   articlesToValidateExists <- 0
   numArticlesToValidate <- NULL
