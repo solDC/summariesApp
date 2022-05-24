@@ -47,7 +47,7 @@ loginpage <- div(id = "loginpage", style = "width: 500px; max-width: 100%; margi
 ########
 server <- function(input, output, session) {
   
-  rv <<- reactiveValues(cred=0, confS=0, confAg=0, confArt=0, confSum=0, init=0, newExp=0, newValid=0, mergeEV=0) 
+  rv <<- reactiveValues(cred=0, confS=0, confAg=0, confArt=0, confSum=0, init=0, newExp=0 ) #, newValid=0, mergeEV=0) 
   
   # Credentials reactive variables
   numExperts <<- reactive({
@@ -181,9 +181,8 @@ server <- function(input, output, session) {
       credentials["lastLogin"][which(credentials$username_id==USER$name),] <<- format(Sys.Date(),origin="1970-01-01")
       
       if(typeUser() == "expert"){
-        if(conf$init[nrow(conf)] == 0 ){
+        if(conf$init[nrow(conf)] == 0){
           shinyalert(title="Experimento no iniciado. Puede salir de la aplicación.", closeOnClickOutside = TRUE, type="info")
-          print("está en conf$init[nrow(conf)] == 0")
         }
         else{
           print(paste0("numero filas validations$pending antes de descartar posibles acuerdos en login: ",nrow(validations$pending)))
@@ -207,8 +206,16 @@ server <- function(input, output, session) {
           else{
             validations$userTitles <- sample(validations$pending$title)
           }
-          length(paste0("Longitud de user Titles",validations$userTitles))
+          if((length(validations$userTitles)==0) || (conf$init[nrow(conf)] == 2)){
+            shinyalert(title="No tiene más resúmenes por validar. Puede salir de la aplicación.", closeOnClickOutside = TRUE, type="info")
+          }
         }  
+      }
+      else{ #admin
+        if ((agreemExists == 1) && (conf$init[nrow(conf)]==1) && (conf$pendingAgreem == 0)){
+          shinyalert(title = "Puede finalizar el experimento",
+                     text ="Los expertos han validado todos los resúmenes", closeOnClickOutside = TRUE, type="info")
+        }
       }
     }#if login true
   })
@@ -677,7 +684,13 @@ server <- function(input, output, session) {
     
     # Show confirmation to user and update list of titles pending to validate
     validations$flag <- validations$flag + 1
-    shinyalert(title="Validación registrada",type="success")
+    
+    if((nrow(validations$pending)==0)|| (conf$init[nrow(conf)] == 1)){
+      shinyalert(title="Experimento finalizado. Puede salir de la aplicación.", closeOnClickOutside = TRUE, type="info")
+    }
+    else{
+      shinyalert(title="Validación registrada",type="success")
+    }
     updateSelectInput(session,"selectTitle",choices=sample(validations$userTitles))
   })
   
