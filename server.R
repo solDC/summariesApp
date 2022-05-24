@@ -202,13 +202,14 @@ server <- function(input, output, session) {
           
           # Randomize titles to validate so different users validate articles in different order
           if (nrow(validations$positions) >= 1){
-            validations$userTitles <- sample(validations$pending[!(validations$pending$position %in% validations$positions$position),2])
+            #validations$userTitles <- sample(validations$pending[!(validations$pending$position %in% validations$positions$position),2])
             validations$pending <- validations$pending %>% anti_join(validations$positions,by="position")
           }
-          else{
-            validations$userTitles <- sample(validations$pending$title)
-          }
-          if((length(validations$userTitles)==0) || (conf$init[nrow(conf)] == 2)){
+          # else{
+          #   #validations$userTitles <- sample(validations$pending$title)
+          # }
+          #if((length(validations$userTitles)==0) || (conf$init[nrow(conf)] == 2)){
+          if((nrow(validations$pending)==0) || (conf$init[nrow(conf)] == 2)){
             shinyalert(title="No tiene más resúmenes por validar. Puede salir de la aplicación.", closeOnClickOutside = TRUE, type="info")
           }
         }  
@@ -246,7 +247,7 @@ server <- function(input, output, session) {
                       width=12, title="1- TITULO: seleccione el artículo a validar", status = "primary", solidHeader = TRUE, collapsible = FALSE,
                       selectInput("selectTitle",
                                   label=("Seleccione el artículo a validar"),
-                                  choices = validations$userTitles)) 
+                                  choices = sample(validations$pending$title))) #validations$userTitles
                   ),
                   fluidRow(
                     box(
@@ -600,7 +601,7 @@ server <- function(input, output, session) {
   output$expertPendingBox <- renderInfoBox({
     infoBox(
       "Pending Validation",
-      length(validations$userTitles), 
+      nrow(validations$pending), #length(validations$userTitles)
       icon = icon("fal fa-edit",verify_fa = FALSE), #("glyphicon-edit", lib = "glyphicon"),
       color = "maroon"
     )
@@ -709,7 +710,7 @@ server <- function(input, output, session) {
       validations$positions <- as.data.frame(validations$positions)
       validations$positions <- rbind(validations$positions,position)
       colnames(validations$positions) <- c("position")
-      validations$userTitles <- validations$pending[!(validations$pending$position %in% validations$positions$position),2]
+      #validations$userTitles <- validations$pending[!(validations$pending$position %in% validations$positions$position),2]
       validations$pending <- validations$pending[!(validations$pending$position %in% validations$positions$position),]
       #####
       
@@ -721,7 +722,7 @@ server <- function(input, output, session) {
       else{
         shinyalert(title="Validación registrada",type="success")
       }
-      updateSelectInput(session,"selectTitle",choices=sample(validations$userTitles))
+      updateSelectInput(session,"selectTitle",choices=sample(validations$pending$title)) #
     }
     else{
       shinyalert(title="Experimento finalizado. Puede salir d ela apliación.",type="info")
