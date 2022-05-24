@@ -47,14 +47,15 @@ loginpage <- div(id = "loginpage", style = "width: 500px; max-width: 100%; margi
 ########
 server <- function(input, output, session) {
   
-  rv <<- reactiveValues(cred=0, confS=0, confAg=0, confArt=0, confSum=0, init=0, newExp=0 ) #, newValid=0, mergeEV=0) 
+  rv <<- reactiveValues(cred=0, confS=0, confAg=0, confArt=0, confSum=0, init=0, newExp=0, listExp=c(0))
+  filesAdmin <- reactiveValues(agreem=NULL, index=0) 
   
   # Credentials reactive variables
   numExperts <<- reactive({
     rv$cred
     
     aux <- credentials %>% filter(permission == "expert")
-    message(paste0("numExperts"),nrow(aux))
+    #message(paste0("numExperts: "),nrow(aux))
     nrow(aux)
   })
   
@@ -68,7 +69,7 @@ server <- function(input, output, session) {
   # Articles and summaries reactive variables
   numArticles <<- reactive({
     rv$confArt
-    message(" calcula numArticles")
+    #message(" calcula numArticles")
     numArticlesG #nrow(articles)
   })
   
@@ -77,7 +78,7 @@ server <- function(input, output, session) {
     rv$confS
     rv$confArt
     
-    message(" calcula sample size")
+    #message(" calcula sample size")
     round(conf$sampleSize[nrow(conf)]*numArticles()/100,0)
   })
   
@@ -87,7 +88,7 @@ server <- function(input, output, session) {
     rv$confS
     rv$confArt
     
-    message(" calcula sample positions")
+    #message(" calcula sample positions")
     sort(sample(1:numArticles(),sampleSize(),replace=F))
   })
   
@@ -155,10 +156,11 @@ server <- function(input, output, session) {
       else{
         sidebarMenu(
           id="tabsAdmin",
-          menuItem('Configurar "Validar Resúmenes"', tabName = "manageEvalSummaries", icon = icon("fal fa-cog",verify_fa = FALSE)),
-          menuItem('Dashboard "Validar Resúmenes"', tabName = "dashboadEvalSummaries", icon = icon("tachometer-alt",lib = "font-awesome",verify_fa = FALSE)),
+          menuItem('Configurar experimento', tabName = "manageEvalSummaries", icon = icon("fal fa-cog",verify_fa = FALSE)),
+          menuItem('Estado experimento', tabName = "dashboadEvalSummaries", icon = icon("tachometer-alt",lib = "font-awesome",verify_fa = FALSE)),
           menuItem('Gestionar Usuarios', tabName = "users", icon = icon("fal fa-user",verify_fa = FALSE)),
-          menuItem('Guardar workspace', tabName = "manageData", icon = icon("fal fa-database",verify_fa = FALSE))
+          menuItem('Guardar workspace', tabName = "manageData", icon = icon("fal fa-database",verify_fa = FALSE)),
+          menuItem('Resultados anteriores', tabName = "dashboadPrev", icon = icon("fal fa-history",lib = "font-awesome",verify_fa = FALSE))
         )
       }
     }
@@ -169,7 +171,7 @@ server <- function(input, output, session) {
   colnames(positions) <- c("position")
   userTitles <- data.frame(matrix(ncol=1,nrow=0))
   colnames(userTitles) <- c("title")
-  validations <- reactiveValues(positions = positions, userTitles = userTitles, pending = articlesToValidate, flag = 0 ) #validations$positions
+  validations <- reactiveValues(positions = positions, userTitles = userTitles, pending = articlesToValidate, id= conf$id[nrow(conf)]) #, flag = 0 ) #validations$positions
   
   #####
   observeEvent(input$login,{
@@ -185,14 +187,14 @@ server <- function(input, output, session) {
           shinyalert(title="Experimento no iniciado. Puede salir de la aplicación.", closeOnClickOutside = TRUE, type="info")
         }
         else{
-          print(paste0("numero filas validations$pending antes de descartar posibles acuerdos en login: ",nrow(validations$pending)))
+          #print(paste0("numero filas validations$pending antes de descartar posibles acuerdos en login: ",nrow(validations$pending)))
           # If there's agreement in certain summaries-articles, there's no need of validating them any more
           if(!is.null(agreements)){
             posDiscard <- agreements %>% filter(agreemPerc >= conf$minLevelAgreem[nrow(conf)]) %>%  select(position)
             print(posDiscard$position)
             validations$pending <- subset(validations$pending,!(position %in% posDiscard$position))
           }
-          print(paste0("numero filas validations$pending despues de descartar posibles acuerdos en login: ",nrow(validations$pending)))
+          #print(paste0("numero filas validations$pending despues de descartar posibles acuerdos en login: ",nrow(validations$pending)))
           
           validatedTitlesPos <- expertsValidations %>% filter(username_id == USER$name) %>% filter(idExp == conf$id[nrow(conf)]) %>% select(position) 
           validations$positions <- as.data.frame(validatedTitlesPos$position)
@@ -212,9 +214,13 @@ server <- function(input, output, session) {
         }  
       }
       else{ #admin
-        if ((agreemExists == 1) && (conf$init[nrow(conf)]==1) && (conf$pendingAgreem == 0)){
+        if ((agreemExists == 1) && (conf$init[nrow(conf)]==1) && (conf$pendingAgreem[nrow(conf)] == 0)){
           shinyalert(title = "Puede finalizar el experimento",
                      text ="Los expertos han validado todos los resúmenes", closeOnClickOutside = TRUE, type="info")
+        }
+        if(nrow(conf) > 1){
+          rv$listExp <<- conf$id[1:(nrow(conf)-1)]
+          print(rv$listExp)
         }
       }
     }#if login true
@@ -223,7 +229,7 @@ server <- function(input, output, session) {
   output$body <- renderUI({
     if (USER$login == TRUE) {
       if(typeUser() == "expert"){
-        validations$flag
+        #validations$flag
         tabItems(
           tabItem(tabName = "information",
                   h4("Acá voy a poner un texto donde se explica el objetivo de la herramienta, el dataset utilizado y el problema con el resumen objectivo del dataset que
@@ -316,6 +322,7 @@ server <- function(input, output, session) {
         rv$confS
         rv$newExp
         rv$cred
+        
         tabItems(
           # tab conf experiment
           #####
@@ -407,33 +414,9 @@ server <- function(input, output, session) {
           # tab status
           #####
           tabItem(tabName ="dashboadEvalSummaries",
-                  fluidRow(
-                    box(width = 12, title = "Seleccione el id del experimento",solidHeader = TRUE, status="primary",collapsible = TRUE,
-                        box(width = 3,
-                            selectInput("selectIdExp",label = "",
-                                        choices = conf$id, 
-                                        selected = conf$id[nrow(conf)]), #seleccionado el último experimento. No sabemos el estado
-                            br(),br(),br(),
-                            actionButton("selectIdBtn",label="Seleccionar",class="btn-primary")
-                            ),
-                        box(width = 9,
-                            column(5,
-                                   strong("Fichero artículos:"),textOutput("articlesFileOutput"),br(),
-                                   strong("Fichero resúmenes:"),textOutput("summariesFileOutput"),br(),
-                                   strong("Tamaño de la muestra:"),textOutput("sampleSizeOutput"),br()),
-                            column(4,
-                                   strong("Nº mínimo validaciones:"),textOutput("numValidOutput"),br(),
-                                   strong("Mínimo nivel acuerdo:"),textOutput("minPercOutput"),br()),
-                            column(3,
-                                   strong("Estado:"),textOutput("statusOutput"),br(),
-                                   strong("Fecha de inicio:"),textOutput("dateInitOutput"),br(),
-                                   strong("Fecha de fin:"),textOutput("dateFinishOutput")),
-                        ),#box
-                        #box(width=12, tableOutput("expDescripOutput")),
-                    ), #outer box
-                  ), #fluidRow
                   fluidRow(               
                     box(width = 12, title="Preguntas realizadas en el experimento",solidHeader = TRUE, status="primary",
+                        collapsible = TRUE, #collapsed = TRUE,
                         p("En cada experimento, ", strong(" se realizan entre una y tres preguntas "),"al usuario ",
                           strong("sobre el resumen ") ,"generado que pueden ser ",strong("verdaderas o falsas"),":"),
                         p(strong("Pregunta 1: "),"El resumen generado: ¿trasmite la idea general del artículo? Verdadero/Falso"),
@@ -455,6 +438,53 @@ server <- function(input, output, session) {
                     box(width=6, plotOutput("typeErrorsCountPlot"))
                   ),#fluidRow
           ),#tabItem dashboardEvalSummaries
+          tabItem(tabName ="dashboadPrev",
+                  fluidRow(
+                    box(width = 12, title = "Seleccione el id del experimento",solidHeader = TRUE,status="primary",
+                        collapsible = TRUE, #collapsed = TRUE,
+                        box(width = 3,
+                            selectInput("selectIdExp",label = "",
+                                        choices = rv$listExp,
+                                        selected = 1), 
+                            br(),br(),br(),
+                            actionButton("selectIdBtn",label="Seleccionar",class="btn-primary")
+                        ),
+                        box(width = 9,
+                            column(5,
+                                   strong("Fichero artículos:"),textOutput("articlesFileOutput"),br(),
+                                   strong("Fichero resúmenes:"),textOutput("summariesFileOutput"),br(),
+                                   strong("Tamaño de la muestra:"),textOutput("sampleSizeOutput"),br()),
+                            column(4,
+                                   strong("Nº mínimo validaciones:"),textOutput("numValidOutput"),br(),
+                                   strong("Mínimo nivel acuerdo:"),textOutput("minPercOutput"),br()),
+                            column(3,
+                                   strong("Estado:"),textOutput("statusOutput"),br(),
+                                   strong("Fecha de inicio:"),textOutput("dateInitOutput"),br(),
+                                   strong("Fecha de fin:"),textOutput("dateFinishOutput")),
+                        ),#box
+                        #box(width=12, tableOutput("expDescripOutput")),
+                    ), #outer box
+                  ), #fluidRow
+                  fluidRow(               
+                    box(width = 12, title="Preguntas realizadas en el experimento",solidHeader = TRUE, status="primary",
+                        collapsible = TRUE, #collapsed = TRUE,
+                        p("En cada experimento, ", strong(" se realizan entre una y tres preguntas "),"al usuario ",
+                          strong("sobre el resumen ") ,"generado que pueden ser ",strong("verdaderas o falsas"),":"),
+                        p(strong("Pregunta 1: "),"El resumen generado: ¿trasmite la idea general del artículo? Verdadero/Falso"),
+                        p(strong("Solo si la pregunta 1 es Verdadera:")),
+                        p(strong("Pregunta 2: "),"El resumen, ¿contiene información inconsistente con el artículo? Verdadero/Falso"),
+                        p(strong("Pregunta 3: "),"El resumen, ¿contiene alguna información que no puede ser inferida del artículo? Verdadero/Falso"),
+                    )),
+                  fluidRow(
+                    box(width = 12, title= "Principales indicadores",solidHeader = TRUE, status="primary",
+                        infoBoxOutput("agreementBoxPrev"),
+                        infoBoxOutput("validatedBoxPrev"),
+                        infoBoxOutput("pendingBoxPrev")
+                    )),
+                  fluidRow(
+                    box(width = 12, dataTableOutput("resultsPrev"))
+                  ),#fluidRow
+          ),#tabItem dashboardPrev
           #####
           #Tab users
           ##### 
@@ -578,7 +608,6 @@ server <- function(input, output, session) {
   
   selectedArticleData <- reactive ({
     if(articlesToValidateExists == 1){
-      message("En selectedArticleData")
       articlesToValidate %>% select(title,url,text,position,summary) %>% filter(title %in% input$selectTitle)
     }
     else{NULL}
@@ -602,7 +631,8 @@ server <- function(input, output, session) {
     #####
     validation <- data.frame(matrix(ncol=length(expertsValidations),nrow=1))
     colnames(validation) <- colnames(expertsValidations)
-    validation$idExp <- conf$id[nrow(conf)]
+    #validation$idExp <- conf$id[nrow(conf)]
+    validation$idExp <- validations$id
     validation$username_id <- USER$name
     pos <- articlesToValidate %>% filter(title == input$selectTitle)  %>% select(position)
     validation$position <- pos$position
@@ -621,79 +651,85 @@ server <- function(input, output, session) {
     print(validation)
     #####
     
-    # Add validation to expertsValidations global dataframe
-    #####
-    expertsValidations <<- rbind(expertsValidations,validation)
-    #####
-    
-    # Calculate if with this new answer generates a new agreement for this articles-summary
-    # Calculate Krippendorff and store result in conf file
-    #####
-    rowIndex <- which(agreements$position == validation$position)
-    colIndex <- which(colnames(agreements) == validation$username_id)
-    agreements[rowIndex ,colIndex] <<- validation$questions
-    agreements$numResp[rowIndex] <<- numExperts()-sum(is.na(agreements[rowIndex,2:(numExperts()+1)]))
-    if(agreements$numResp[rowIndex] >= conf$minNumValid[nrow(conf)]){
-      comb <- combn(agreements[rowIndex,2:(numExperts()+1)],2,simplify = FALSE)
-      agreements$posPairs[rowIndex] <<- calcPairs(agreements$numResp[rowIndex])
-      n <- numExperts()+8
-      for(val in comb){
-        agreements[rowIndex,n] <<- (val[1]==val[2])
-        n <- n+1
+    # Do whats needed if the experiment is still running
+    if((validations$id == conf$id[nrow(conf)]) && (conf$init[validations$id] == 1)){
+      # Add validation to expertsValidations global dataframe
+      #####
+      expertsValidations <<- rbind(expertsValidations,validation)
+      #####
+      
+      # Calculate if with this new answer generates a new agreement for this articles-summary
+      # Calculate Krippendorff and store result in conf file
+      #####
+      rowIndex <- which(agreements$position == validation$position)
+      colIndex <- which(colnames(agreements) == validation$username_id)
+      agreements[rowIndex ,colIndex] <<- validation$questions
+      agreements$numResp[rowIndex] <<- numExperts()-sum(is.na(agreements[rowIndex,2:(numExperts()+1)]))
+      if(agreements$numResp[rowIndex] >= conf$minNumValid[nrow(conf)]){
+        comb <- combn(agreements[rowIndex,2:(numExperts()+1)],2,simplify = FALSE)
+        agreements$posPairs[rowIndex] <<- calcPairs(agreements$numResp[rowIndex])
+        n <- numExperts()+8
+        for(val in comb){
+          agreements[rowIndex,n] <<- (val[1]==val[2])
+          n <- n+1
+        }
+        agreements$agreemCount[rowIndex] <<- rowSums(agreements[rowIndex,(numExperts()+8):length(agreements)],na.rm = TRUE)
+        agreements$agreemPerc[rowIndex] <<- round(agreements$agreemCount[rowIndex] / agreements$posPairs[rowIndex] * 100,2)
+        if(agreements$agreemPerc[rowIndex] < conf$minLevelAgreem[nrow(conf)]){
+          agreements$agreedAnswer[rowIndex] <<- 0
+        }
+        else{
+          vec <- table(unname(unlist(agreements[rowIndex,2:(numExperts()+1)])))
+          agreements$agreedAnswer[rowIndex] <<- strtoi(names(which.max(vec)))
+        }
       }
-      agreements$agreemCount[rowIndex] <<- rowSums(agreements[rowIndex,(numExperts()+8):length(agreements)],na.rm = TRUE)
-      agreements$agreemPerc[rowIndex] <<- round(agreements$agreemCount[rowIndex] / agreements$posPairs[rowIndex] * 100,2)
-      if(agreements$agreemPerc[rowIndex] < conf$minLevelAgreem[nrow(conf)]){
-        agreements$agreedAnswer[rowIndex] <<- 0
+      # Check if there's agreement
+      tableR <- agreements[,2:(numExperts()+1)]
+      #tableR <- tableR[,colSums(is.na(tableR))<nrow(tableR)]
+      krip <- krippendorffs.alpha(as.matrix(tableR), level = "nominal", control = list(parallel = FALSE,bootit=100),verbose = TRUE)
+      conf$kripp[nrow(conf)] <<- round(krip$alpha.hat,2)
+
+      #####
+      
+      # Discard other titles that may have reached an agreement with the answers of other users.
+      # Save num. agreements and pending in conf file
+      #####
+      if(!is.null(agreements)){
+        posDiscard <- agreements %>% filter(agreemPerc >= conf$minLevelAgreem[nrow(conf)]) %>%  select(position)
+        validations$pending <- subset(validations$pending,!(position %in% posDiscard$position))
+        
+        conf$validAgreem[nrow(conf)] <<- nrow(posDiscard)
+        conf$pendingAgreem[nrow(conf)] <<- nrow(articlesToValidate) - conf$validAgreem
+      }
+      #####
+      
+      # Discard the current validation from the titles that need validation
+      #####
+      position <- validation$position
+      validations$positions <- as.data.frame(validations$positions)
+      validations$positions <- rbind(validations$positions,position)
+      colnames(validations$positions) <- c("position")
+      validations$userTitles <- validations$pending[!(validations$pending$position %in% validations$positions$position),2]
+      validations$pending <- validations$pending[!(validations$pending$position %in% validations$positions$position),]
+      #####
+      
+      #####  
+      # Show confirmation to user and update list of titles pending to validate
+      if((nrow(validations$pending)==0)|| (conf$init[nrow(conf)] == 2)){
+        shinyalert(title="Experimento finalizado. Puede salir de la aplicación.", closeOnClickOutside = TRUE, type="info")
       }
       else{
-        vec <- table(unname(unlist(agreements[rowIndex,2:(numExperts()+1)])))
-        print(vec)
-        agreements$agreedAnswer[rowIndex] <<- strtoi(names(which.max(vec)))
+        shinyalert(title="Validación registrada",type="success")
       }
-    }
-    tableR <- agreements[,2:(numExperts()+1)]
-    tableR <- tableR[,colSums(is.na(tableR))<nrow(tableR)]
-    krip <- krippendorffs.alpha(as.matrix(tableR), level = "nominal", control = list(parallel = FALSE,bootit=100),verbose = TRUE)
-    conf$kripp <<- round(krip$alpha.hat,2)
-    filesAdmin$chgConf <- filesAdmin$chgConf + 1
-    #####
-    
-    # Discard other titles that may have reached an agreement with the answers of other users.
-    # Save num. agreements and pending in conf file
-    #####
-    if(!is.null(agreements)){
-      posDiscard <- agreements %>% filter(agreemPerc >= conf$minLevelAgreem[nrow(conf)]) %>%  select(position)
-      validations$pending <- subset(validations$pending,!(position %in% posDiscard$position))
-      
-      conf$validAgreem <<- nrow(posDiscard)
-      conf$pendingAgreem <<- nrow(articlesToValidate) - conf$validAgreem
-      filesAdmin$chgConf <- filesAdmin$chgConf + 1
-    }
-    #####
-    
-    # Discard the current validation from the titles that need validation
-    #####
-    position <- validation$position
-    validations$positions <- as.data.frame(validations$positions)
-    validations$positions <- rbind(validations$positions,position)
-    colnames(validations$positions) <- c("position")
-    validations$userTitles <- validations$pending[!(validations$pending$position %in% validations$positions$position),2]
-    validations$pending <- validations$pending[!(validations$pending$position %in% validations$positions$position),]
-    #####
-    
-    # Show confirmation to user and update list of titles pending to validate
-    validations$flag <- validations$flag + 1
-    
-    if((nrow(validations$pending)==0)|| (conf$init[nrow(conf)] == 1)){
-      shinyalert(title="Experimento finalizado. Puede salir de la aplicación.", closeOnClickOutside = TRUE, type="info")
+      updateSelectInput(session,"selectTitle",choices=sample(validations$userTitles))
     }
     else{
-      shinyalert(title="Validación registrada",type="success")
+      shinyalert(title="Experimento finalizado. Puede salir d ela apliación.",type="info")
     }
-    updateSelectInput(session,"selectTitle",choices=sample(validations$userTitles))
   })
   
+  
+  ######
   # Configure Experiment
   ######
   
@@ -743,6 +779,85 @@ server <- function(input, output, session) {
     conf$fileArticles[nrow(conf)]
   })
   
+  observeEvent(input$saveSampleSize,{
+    if(conf$init[nrow(conf)]==0){
+      #print("Se va a cambiar el tamaño de la muestra en conf")
+      conf$sampleSize[nrow(conf)] <<- input$sample
+      rv$confS <<- rv$confS + 1
+      shinyalert(title="Tamaño de la muestra modificado", closeOnClickOutside = TRUE, type="success")
+    }
+    else{
+      shinyalert(title="No se pueden realizar modificaciones en el experimento mientras está activo", 
+                 closeOnClickOutside = TRUE, type="error")
+    }
+  })
+  
+  observeEvent(input$saveParamAgreem,{
+    if(conf$init[nrow(conf)]==0){
+      #print("Se van a cambiar los parametros de configuracion para calcular el acuerdo")
+      conf$minNumValid[nrow(conf)] <<- input$minValid
+      conf$minLevelAgreem[nrow(conf)] <<- input$minAgreem
+      rv$confAg <<- rv$confAg + 1
+      #print(rv$confAg)
+      shinyalert(title="Cambios guardados", closeOnClickOutside = TRUE, type="success")
+    }
+    else{
+      shinyalert(title="No se pueden realizar modificaciones en el experimento mientras está activo", 
+                 closeOnClickOutside = TRUE, type="error")
+    }
+  })
+  
+  observeEvent(input$saveNewArtFile,{
+    if(conf$init[nrow(conf)]==0){
+      #print("Se va a cambiar el fichero de artículos a validar")
+      if(!is.null(input$newArticlesFile) && input$newArticlesFile$type == "text/csv"){
+        file.copy(input$newArticlesFile$datapath, paste0(inputDir,input$newArticlesFile$name))
+        conf$fileArticles[nrow(conf)] <<- input$newArticlesFile$name
+        #print(conf$fileArticles[nrow(conf)])
+        articles <<- loadCSV(paste0(inputDir,conf$fileArticles[nrow(conf)]))
+        rv$confArt <<- rv$confArt + 1
+        #print(rv$confArt)
+        shinyalert(title="Nuevo fichero de artículos almacenado", closeOnClickOutside = TRUE, type="success")
+        updateSelectInput("selectInputFile", label = "Seleccione el fichero que quiera descargar", 
+                    choices = list.files(inputDir), 
+                    selected = 1)
+      }
+      else{
+        msg <- paste0("No se puede cargar el fichero ",conf$fileArticles[nrow(conf)])
+        shinyalert(title=msg,closeOnClickOutside = TRUE,type="warning")
+        message(msg)
+      }
+    }
+    else{
+      shinyalert(title="No se pueden realizar modificaciones en el experimento mientras está activo", 
+                 closeOnClickOutside = TRUE, type="error")
+    }
+  })
+  
+  observeEvent(input$saveNewSumFile,{
+    if(conf$init[nrow(conf)]==0){
+      #print("Se va a cambiar el fichero de resúmenes a validar")
+      if(!is.null(input$newSummariesFile) && input$newSummariesFile$type == "text/csv"){
+        file.copy(input$newSummariesFile$datapath, paste0(inputDir,input$newSummariesFile$name))
+        conf$fileSummaries[nrow(conf)] <<- input$newSummariesFile$name
+        #print(conf$fileSummaries[nrow(conf)])
+        summaries <<- loadCSV(paste0(inputDir,conf$fileSummaries[nrow(conf)]))
+        rv$confSum <<- rv$confSum + 1
+        #print(rv$confSum)
+        shinyalert(title="Nuevo fichero de resúmenes almacenado", closeOnClickOutside = TRUE, type="success")
+      }
+      else{
+        msg <- paste0("No se puede cargar el fichero ",conf$fileSummaries [nrow(conf)])
+        shinyalert(title=msg,closeOnClickOutside = TRUE,type="warning")
+        message(msg)
+      }
+    }
+    else{
+      shinyalert(title="No se pueden realizar modificaciones en el experimento mientras está activo", 
+                 closeOnClickOutside = TRUE, type="error")
+    }
+  })
+  
   ##### Start Experiment
   observeEvent(input$startValid,{
     req(samplePositions)
@@ -759,8 +874,6 @@ server <- function(input, output, session) {
         posDiscard <- agreements %>% filter(agreemPerc >= conf$minLevelAgreem[nrow(conf)]) %>% select(position)
         articlesToValidate <<- subset(articlesToValidate,!(position %in% posDiscard$position))
       }
-      #print(head(articlesToValidate[1:5,-c(3)]))
-      #print(nrow(articlesToValidate))     
     }
     if(agreemExists == 0){
       nameUsers <- credentials %>% filter(permission == "expert") %>%  select(username_id)
@@ -774,18 +887,13 @@ server <- function(input, output, session) {
       colN <- rep("P",nc)
       colnames(aux2) <- paste0(colN,c(1:nc))
       agreements <<- cbind(aux1,aux2)
-      print(agreements)
       agreemExists <<- 1
       rv$init <<- rv$init + 1
-      
-      print(agreements[1:5,1:8])
-      print(nrow(agreements))
-      
     }
     if(expValidExists == 0){
       expertsValidations <<- data.frame(matrix(ncol=9,nrow=0))
       colnames(expertsValidations) <<- c( "idExp","position","question1","question2","question3","questions","username_id","date","articleTitle")
-      print(expertsValidations)
+      #print(expertsValidations)
       expValidExists <<- 1
     }
     
@@ -818,12 +926,15 @@ server <- function(input, output, session) {
     shinyjs::enable("changeTypeUser")
     nrowC <- nrow(conf)
     conf$dateStop[nrowC] <<- format(Sys.Date(),origin="1970-01-01")
-    conf$dateStop[nrowC] <<- 2 #Terminado
+    conf$init[nrowC] <<- 2 #Terminado
     newConf <- conf[nrowC,]
     newConf$id <- conf$id[nrowC]+1
     newConf$init <- 0
     newConf$dateInit <- NA
     newConf$dateStop <- NA
+    newConf$kripp <- NA
+    newConf$validAgreem <- NA
+    newConf$pendingAgreem <- NA
     conf <<- rbind(conf,newConf)
     #save data of this experiment, create paths for the new ones 
     saveRDS(agreements,file=filePathAg)
@@ -834,198 +945,184 @@ server <- function(input, output, session) {
     expValidExists <<- 0
     saveRDS(articlesToValidate,file=filePathAV)
     filePathAV <- file.path(outputDir,paste0("articlesValidate-",conf$id[nrow(conf)],".rds"))
-    rv$newExp <- rv$newExp + 1
+    rv$newExp <<- rv$newExp + 1
     rv$init <<- rv$init + 1
+    
+    rv$listExp <<- nrow(conf)-1
+    updateSelectInput(session,"selectIdExp",label = "",choices = rv$listExp)
   })
   
-  observeEvent(input$saveSampleSize,{
-    if(conf$init[nrow(conf)]==0){
-      print("Se va a cambiar el tamaño de la muestra en conf")
-      conf$sampleSize[nrow(conf)] <<- input$sample
-      rv$confS <<- rv$confS + 1
-      shinyalert(title="Tamaño de la muestra modificado", closeOnClickOutside = TRUE, type="success")
-    }
-    else{
-      shinyalert(title="No se pueden realizar modificaciones en el experimento mientras está activo", 
-                 closeOnClickOutside = TRUE, type="error")
-    }
-  })
   
-  observeEvent(input$saveParamAgreem,{
-    if(conf$init[nrow(conf)]==0){
-      print("Se van a cambiar los parametros de configuracion para calcular el acuerdo")
-      conf$minNumValid[nrow(conf)] <<- input$minValid
-      conf$minLevelAgreem[nrow(conf)] <<- input$minAgreem
-      rv$confAg <<- rv$confAg + 1
-      print(rv$confAg)
-      shinyalert(title="Cambios guardados", closeOnClickOutside = TRUE, type="success")
-    }
-    else{
-      shinyalert(title="No se pueden realizar modificaciones en el experimento mientras está activo", 
-                 closeOnClickOutside = TRUE, type="error")
-    }
-  })
-  
-  observeEvent(input$saveNewArtFile,{
-    if(conf$init[nrow(conf)]==0){
-      print("Se va a cambiar el fichero de artículos a validar")
-      if(!is.null(input$newArticlesFile) && input$newArticlesFile$type == "text/csv"){
-        file.copy(input$newArticlesFile$datapath, paste0(inputDir,input$newArticlesFile$name))
-        conf$fileArticles[nrow(conf)] <<- input$newArticlesFile$name
-        print(conf$fileArticles[nrow(conf)])
-        articles <<- loadCSV(paste0(inputDir,conf$fileArticles[nrow(conf)]))
-        rv$confArt <<- rv$confArt + 1
-        print(rv$confArt)
-        shinyalert(title="Nuevo fichero de artículos almacenado", closeOnClickOutside = TRUE, type="success")
-      }
-      else{
-        msg <- paste0("No se puede cargar el fichero ",conf$fileArticles[nrow(conf)])
-        shinyalert(title=msg,closeOnClickOutside = TRUE,type="warning")
-        message(msg)
-      }
-    }
-    else{
-      shinyalert(title="No se pueden realizar modificaciones en el experimento mientras está activo", 
-                 closeOnClickOutside = TRUE, type="error")
-    }
-  })
-  
-  observeEvent(input$saveNewSumFile,{
-    if(conf$init[nrow(conf)]==0){
-      print("Se va a cambiar el fichero de resúmenes a validar")
-      if(!is.null(input$newSummariesFile) && input$newSummariesFile$type == "text/csv"){
-        file.copy(input$newSummariesFile$datapath, paste0(inputDir,input$newSummariesFile$name))
-        conf$fileSummaries[nrow(conf)] <<- input$newSummariesFile$name
-        print(conf$fileSummaries[nrow(conf)])
-        summaries <<- loadCSV(paste0(inputDir,conf$fileSummaries[nrow(conf)]))
-        rv$confSum <<- rv$confSum + 1
-        print(rv$confSum)
-        shinyalert(title="Nuevo fichero de resúmenes almacenado", closeOnClickOutside = TRUE, type="success")
-      }
-      else{
-        msg <- paste0("No se puede cargar el fichero ",conf$fileSummaries [nrow(conf)])
-        shinyalert(title=msg,closeOnClickOutside = TRUE,type="warning")
-        message(msg)
-      }
-    }
-    else{
-      shinyalert(title="No se pueden realizar modificaciones en el experimento mientras está activo", 
-                 closeOnClickOutside = TRUE, type="error")
-    }
-  })
-  
-  #Validation Status
   ######
-  filesAdmin <- reactiveValues(agreem = NULL, conf = conf, index = nrow(conf), chgConf = 0)
+  #Validation Status Prev
+  ######
   
   observeEvent(input$selectIdBtn,{
-    filesAdmin$index <- conf %>% filter(id == input$selectIdExp) %>% select(id)
-    if(conf$init[filesAdmin$index] != 0){
+    if(input$selectIdExp > 0){
+      filesAdmin$index <- unlist(conf %>% filter(id == input$selectIdExp) %>% select(id))
+      print(paste0("filesAdmin$index: ",filesAdmin$index))
+      #if (conf$init[filesAdmin$index] != 0){ #Si el experimento ha iniciado o terminado ya existe el fichero agreements, lo cargo
       filesAdmin$agreem <- readRDS(file.path(outputDir,paste0("agreements-",conf$id[filesAdmin$index],".rds")))
+      #}
     }
   })
-  
-  # output$expDescripOutput <- renderTable({
-  #   filesAdmin$index
-  #   data <- conf %>% filter(id == input$selectIdExp) %>% select(-c("id","kripp","validAgreem","pendingAgreem"))
-  #   colnames(data) <- c("Muestra (%)","Resumenes","Articulos","Nº mínimo validaciones",
-  #                       "Acuerdo mínimo (%)","Estado","Fecha inicio","Fecha fin")
-  #   data
-  # })
-  
+
   output$articlesFileOutput <- renderText({
     filesAdmin$index
     
-    filesAdmin$conf$fileArticles[filesAdmin$index]
+    conf$fileArticles[filesAdmin$index]
   })
   
   output$summariesFileOutput <- renderText({
     filesAdmin$filesAdmin$index
     
-    filesAdmin$conf$fileSummaries[filesAdmin$index]
+    conf$fileSummaries[filesAdmin$index]
   })
   
   output$sampleSizeOutput <- renderText({
     filesAdmin$index
     
-    paste0(filesAdmin$conf$sampleSize[filesAdmin$index], "%")
+    paste0(conf$sampleSize[filesAdmin$index], "%")
   })
 
   output$numValidOutput <- renderText({
     filesAdmin$index
     
-    paste0(filesAdmin$conf$minNumValid[filesAdmin$index]," por resumen")
+    paste0(conf$minNumValid[filesAdmin$index]," por resumen")
   })
   
   output$minPercOutput <- renderText({
     filesAdmin$index
     
-    paste0(filesAdmin$conf$minLevelAgreem[filesAdmin$index],"%")
+    paste0(conf$minLevelAgreem[filesAdmin$index],"%")
   })
 
   output$statusOutput <- renderText({
     filesAdmin$index
-    
-    estado <- filesAdmin$conf$init[filesAdmin$index]
-    message(paste0("Estado: ",estado))
-    switch(as.integer(estado+1),"No iniciado","Iniciado","Terminado")
+    if(filesAdmin$index != 0){
+      estado <- conf$init[filesAdmin$index]
+      message(paste0("Estado: ",estado))
+      switch(as.integer(estado+1),"No iniciado","Iniciado","Terminado")
+    }
   })
 
   output$dateInitOutput <- renderText({
     filesAdmin$index
     
-    filesAdmin$conf$dateInit[filesAdmin$index]
+    conf$dateInit[filesAdmin$index]
   })
 
   output$dateFinishOutput <- renderText({
     filesAdmin$index
     
-    filesAdmin$conf$dateStop[filesAdmin$index]
+    conf$dateStop[filesAdmin$index]
   })
  
-  output$agreementBox <- renderInfoBox({
-    filesAdmin$chgConf
+  output$agreementBoxPrev <- renderInfoBox({
+    filesAdmin$index
+    
     infoBox(
       "Krippendorff's Alpha",
-      filesAdmin$conf$kripp[filesAdmin$index],
+      conf$kripp[filesAdmin$index], 
+      icon = icon("fal fa-handshake",verify_fa = FALSE),
+      color = "purple"
+    )
+  })
+  
+  output$validatedBoxPrev <- renderInfoBox({
+    filesAdmin$index
+    
+    infoBox(
+      "Validados con acuerdo",
+      conf$validAgreem[filesAdmin$index], 
+      icon = icon("fal fa-check",verify_fa = FALSE),   # ("glyphicon-check", lib = "glyphicon"),
+      color = "olive"
+    )
+  })
+
+  output$pendingBoxPrev <- renderInfoBox({
+    filesAdmin$index
+    
+    infoBox(
+      "Pendientes de validar",
+      conf$pendingAgreem[filesAdmin$index],
+      icon = icon("fal fa-edit",verify_fa = FALSE), #("glyphicon-edit", lib = "glyphicon"),
+      color = "maroon"
+    )
+  })
+  
+  output$resultsPrev <-  DT::renderDataTable({
+    if((filesAdmin$index != 0) && (conf$init[filesAdmin$index] != 0)){
+      filesAdmin$agreem <- readRDS(file.path(outputDir,paste0("agreements-",conf$id[filesAdmin$index],".rds")))
+      if(!is.null(filesAdmin$agreem)){
+        print("Pinta la tabla admin")
+        colIndex <- which(colnames(filesAdmin$agreem)=="numResp")
+        tableR <- filesAdmin$agreem[2:colIndex]
+        agreement <- paste0(filesAdmin$agreem$agreemPerc,"%")
+        tableR <- cbind(tableR,agreement)
+        #tableR <- tableR[,colSums(is.na(tableR))<nrow(tableR)] #discard columns with no even one answer
+        answers <- filesAdmin$agreem$agreedAnswer
+        n <- 1
+        for(val in filesAdmin$agreem$agreedAnswer){
+          answers[n] <- ifelse(val == 200,"F",ifelse(val == 111,"V-V-V",
+                                                     ifelse(val == 112,"V-V-F",ifelse(val == 121,"V-F-V",
+                                                                                      ifelse(val == 122, "V-F-F","Sin acuerdo")))))
+          n <- n+1
+        }
+        tableR <- cbind(tableR,answers)
+        DT::datatable(tableR,extensions = 'Buttons',
+                      options = list(autoWidth = TRUE, scrollX=TRUE, searching = FALSE, paging = TRUE, dom = 'Bfrtip', buttons= c('copy', 'csv', 'excel')),
+                      class = "display")
+      }
+    }
+  })
+  
+  
+  ######
+  #Validation Status Current
+  ######
+  
+  output$agreementBox <- renderInfoBox({
+    invalidateLater(10000,session)
+    infoBox(
+      "Krippendorff's Alpha",
+      conf$kripp[nrow(conf)], 
       icon = icon("fal fa-handshake",verify_fa = FALSE),
       color = "purple"
     )
   })
   
   output$validatedBox <- renderInfoBox({
-    filesAdmin$chgConf
+    invalidateLater(10000,session)
     infoBox(
       "Validados con acuerdo",
-      filesAdmin$conf$validAgreem[filesAdmin$index],
+      conf$validAgreem[nrow(conf)],
       icon = icon("fal fa-check",verify_fa = FALSE),   # ("glyphicon-check", lib = "glyphicon"),
       color = "olive"
     )
   })
-
+  
   output$pendingBox <- renderInfoBox({
-    filesAdmin$chgConf
+    invalidateLater(10000,session)
     infoBox(
       "Pendientes de validar",
-      filesAdmin$conf$pendingAgreem[filesAdmin$index],
+      conf$pendingAgreem[nrow(conf)],
       icon = icon("fal fa-edit",verify_fa = FALSE), #("glyphicon-edit", lib = "glyphicon"),
       color = "maroon"
     )
   })
   
   output$results <-  DT::renderDataTable({
-    if(conf$init[filesAdmin$index] != 0){
-      if(is.null(filesAdmin$agreem)){
-        filesAdmin$agreem <- readRDS(file.path(outputDir,paste0("agreements-",conf$id[filesAdmin$index],".rds")))
-      }
-      colIndex <- which(colnames(filesAdmin$agreem)=="numResp")
-      tableR <- filesAdmin$agreem[2:colIndex] 
-      agreement <- paste0(filesAdmin$agreem$agreemPerc,"%")
+    invalidateLater(10000,session)
+    if(agreemExists == 1){ 
+      colIndex <- which(colnames(agreements)=="numResp")
+      tableR <- agreements[2:colIndex] 
+      agreement <- paste0(agreements$agreemPerc,"%")
       tableR <- cbind(tableR,agreement)
-      tableR <- tableR[,colSums(is.na(tableR))<nrow(tableR)] #discard columns with no even one answer
-      answers <- filesAdmin$agreem$agreedAnswer
+      #tableR <- tableR[,colSums(is.na(tableR))<nrow(tableR)] #discard columns with no even one answer
+      answers <- agreements$agreedAnswer
       n <- 1
-      for(val in filesAdmin$agreem$agreedAnswer){
+      for(val in answers){
         answers[n] <- ifelse(val == 200,"F",ifelse(val == 111,"V-V-V",
                                                    ifelse(val == 112,"V-V-F",ifelse(val == 121,"V-F-V",
                                                                                     ifelse(val == 122, "V-F-F","Sin acuerdo")))))
@@ -1037,9 +1134,11 @@ server <- function(input, output, session) {
                     class = "display")
     }
   })
+
   
   #Manage Users
   ######
+  
   output$tableUsers <-  DT::renderDataTable({
     rv$cred
     data <- credentials %>% select(username_id,permission) %>% filter(permission %in% input$cgTypeUser)
@@ -1061,8 +1160,8 @@ server <- function(input, output, session) {
         newUser$permission <- input$typeUserInput
         newUser$lastLogin <- NA
         credentials <<- rbind(credentials,newUser)
-        print(paste0("Nueov usuario agregado",credentials$username_id))
-        print(credentials)
+        # print(paste0("Nueov usuario agregado",credentials$username_id))
+        # print(credentials)
         
         # Add new user to agreements table if exists and only if new user is an expert
         if((agreemExists == 1) && (newUser$permission == "expert")){
@@ -1098,7 +1197,7 @@ server <- function(input, output, session) {
       currentType <- credentials["permission"][which(credentials$username_id==input$usernameInputChgType),]
       newType <- input$typeUserInputChgType
       if( newType != currentType){
-        print("entro a if cambio tipo usuario")
+        #print("entro a if cambio tipo usuario")
         credentials["permission"][which(credentials$username_id==input$usernameInputChgType),] <<- newType
         rv$cred <<- rv$cred + 1
         shinyalert(title="El tipo de usuario guardados",
@@ -1117,7 +1216,7 @@ server <- function(input, output, session) {
   #####
   observeEvent(input$changePswUser,{
     if(input$pswInputChg != ""){
-      print("entro a if psw")
+      #print("entro a if psw")
       credentials["passod"][which(credentials$username_id==input$usernameInputChgPsw),] <<- input$pswInputChg #sapply(input$pswInputChg, sodium::password_store)
       rv$cred <<- rv$cred + 1
       shinyalert(title="Cambios sobre el usuario guardados",closeOnClickOutside = TRUE,type="success")
@@ -1126,6 +1225,7 @@ server <- function(input, output, session) {
       shinyalert(title="Introduzca una contraseña para continuar",closeOnClickOutside = TRUE,type="error")
     }
   })
+  
   
   #Save workspace
   ######
@@ -1139,7 +1239,7 @@ server <- function(input, output, session) {
       paste(input$selectInputFile, sep = "")
     },
     content = function(con) {
-      write.csv(dataCSV(), con, row.names = TRUE)
+      write.csv(dataCSV(), con, row.names = FALSE)
     }
   )
   

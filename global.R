@@ -4,7 +4,7 @@ library(dplyr)
 library(rstan)
 
 
-set.seed(123)
+set.seed(123) 
 
 # Set Local / RStudio Connect directories
 outputDir <- "./data/outputs/"

@@ -1,2 +1,2 @@
 "id","sampleSize","fileSummaries","fileArticles","minNumValid","minLevelAgreem","init","dateInit","dateStop","kripp","validAgreem","pendingAgreem"
-1,0.1,"summaries-700-128.csv","xlsum.csv",3,60,1,"2022-05-23",NA,0.15,4,1
+1,0.2,"summaries-700-128.csv","xlsum.csv",3,60,1,"2022-05-24",NA,0.75,3,7
