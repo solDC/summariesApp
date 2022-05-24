@@ -169,9 +169,9 @@ server <- function(input, output, session) {
   # Reactive Value to store the position of all validated titles perform by the user (previous and new)
   positions <- data.frame(matrix(ncol=1,nrow=0))
   colnames(positions) <- c("position")
-  userTitles <- data.frame(matrix(ncol=1,nrow=0))
-  colnames(userTitles) <- c("title")
-  validations <- reactiveValues(positions = positions, userTitles = userTitles, pending = articlesToValidate, id= conf$id[nrow(conf)]) #, flag = 0 ) #validations$positions
+  # userTitles <- data.frame(matrix(ncol=1,nrow=0))
+  # colnames(userTitles) <- c("title")
+  validations <- reactiveValues(positions = positions, pending = articlesToValidate, id= conf$id[nrow(conf)]) #userTitles = userTitles,flag = 0 ) #validations$positions
   
   #####
   observeEvent(input$login,{
@@ -430,15 +430,28 @@ server <- function(input, output, session) {
                       infoBoxOutput("agreementBox"),
                       infoBoxOutput("validatedBox"),
                       infoBoxOutput("pendingBox")
-                    )),
+                  )),
                   fluidRow(
-                    box(width = 12, dataTableOutput("results"))
+                    box(title= "Respuestas de los usuarios por resumen",width = 12, status = "primary", solidHeader = TRUE,
+                        dataTableOutput("results")),
+                    box(title= "Información sobre el resumen",width = 12, status = "primary", solidHeader = TRUE,
+                        dataTableOutput("atv"))
                   ),#fluidRow
                   fluidRow(
-                    box(width=6, plotOutput("OKKO_plot")),
-                    box(width=6, plotOutput("typeErrorsCountPlot"))
+                    box(width=12, title="Número de validaciones por usuario y tipo de respuesta",solidHeader = TRUE, status="primary",
+                        box(width=6, title = "Número y tipo de respuestas por usuario",
+                            plotOutput("countUsersAnswersPlot")),
+                        box(width=6, title = "Número de validaciones por tipo de respuesta",
+                            plotOutput("countTypeAnswerPlot"))
+                    ),
                   ),#fluidRow
-          ),#tabItem dashboardEvalSummaries
+                  fluidRow(
+                    box(width = 12,title="Heatmap: tipo de respuestas por usuario",solidHeader = TRUE, status="primary",
+                        plotOutput("usersValidations"))
+                  ),
+ 
+          ),#tabItem dashboardPrev
+          #####
           tabItem(tabName ="dashboadPrev",
                   fluidRow(
                     box(width = 12, title = "Seleccione el id del experimento",solidHeader = TRUE,status="primary",
@@ -463,7 +476,6 @@ server <- function(input, output, session) {
                                    strong("Fecha de inicio:"),textOutput("dateInitOutput"),br(),
                                    strong("Fecha de fin:"),textOutput("dateFinishOutput")),
                         ),#box
-                        #box(width=12, tableOutput("expDescripOutput")),
                     ), #outer box
                   ), #fluidRow
                   fluidRow(               
@@ -483,7 +495,8 @@ server <- function(input, output, session) {
                         infoBoxOutput("pendingBoxPrev")
                     )),
                   fluidRow(
-                    box(width = 12, dataTableOutput("resultsPrev"))
+                    box(width = 12, dataTableOutput("resultsPrev")),
+                    box(width = 12, dataTableOutput("atvSelected"))
                   ),#fluidRow
           ),#tabItem dashboardPrev
           #####
@@ -686,6 +699,7 @@ server <- function(input, output, session) {
       }
       # Check if there's agreement
       tableR <- agreements[,2:(numExperts()+1)]
+      tableR <- tableR %>% select_if(~ !all(is.na(.)))
       #tableR <- tableR[,colSums(is.na(tableR))<nrow(tableR)]
       krip <- krippendorffs.alpha(as.matrix(tableR), level = "nominal", control = list(parallel = FALSE,bootit=100),verbose = TRUE)
       conf$kripp[nrow(conf)] <<- round(krip$alpha.hat,2)
@@ -1058,8 +1072,8 @@ server <- function(input, output, session) {
       if(!is.null(filesAdmin$agreem)){
         print("Pinta la tabla admin")
         colIndex <- which(colnames(filesAdmin$agreem)=="numResp")
-        tableR <- filesAdmin$agreem[2:colIndex]
-        agreement <- paste0(filesAdmin$agreem$agreemPerc,"%")
+        tableR <- filesAdmin$agreem[1:colIndex]
+        agreement <- ifelse(!is.na(agreements$agreemPerc),paste0(agreements$agreemPerc,"%"),"")
         tableR <- cbind(tableR,agreement)
         #tableR <- tableR[,colSums(is.na(tableR))<nrow(tableR)] #discard columns with no even one answer
         answers <- filesAdmin$agreem$agreedAnswer
@@ -1071,11 +1085,21 @@ server <- function(input, output, session) {
           n <- n+1
         }
         tableR <- cbind(tableR,answers)
+        atv <- readRDS(paste0(outputDir,"articlesToValidate-",conf$id[filesAdmin$index],".rds"))
+        tableR <- merge(tableR,atv,by="position",all=TRUE)
         DT::datatable(tableR,extensions = 'Buttons',
                       options = list(autoWidth = TRUE, scrollX=TRUE, searching = FALSE, paging = TRUE, dom = 'Bfrtip', buttons= c('copy', 'csv', 'excel')),
                       class = "display")
       }
     }
+  })
+  
+  observe({
+    req(input$resultsPrev_rows_selected)
+    dataATV <- file.path(outputDir,paste0("articlesToValidate-",filesAdmin$index,".rds"))
+    output$atvSelected <- DT::renderDataTable({
+      DT::datatable(dataATV[input$resultsPrev_rows_selected,],options = list(autoWidth = TRUE, scrollX=TRUE))
+    })
   })
   
   
@@ -1114,12 +1138,13 @@ server <- function(input, output, session) {
   })
   
   output$results <-  DT::renderDataTable({
-    invalidateLater(10000,session)
+    invalidateLater(30000,session)
     if(agreemExists == 1){ 
       colIndex <- which(colnames(agreements)=="numResp")
-      tableR <- agreements[2:colIndex] 
-      agreement <- paste0(agreements$agreemPerc,"%")
+      tableR <- agreements[1:colIndex]
+      agreement <- ifelse(!is.na(agreements$agreemPerc),paste0(agreements$agreemPerc,"%"),"")
       tableR <- cbind(tableR,agreement)
+      tableR <- tableR %>% select_if(~ !all(is.na(.)))
       #tableR <- tableR[,colSums(is.na(tableR))<nrow(tableR)] #discard columns with no even one answer
       answers <- agreements$agreedAnswer
       n <- 1
@@ -1130,13 +1155,83 @@ server <- function(input, output, session) {
         n <- n+1
       }
       tableR <- cbind(tableR,answers)
-      DT::datatable(tableR,extensions = 'Buttons', 
-                    options = list(autoWidth = TRUE, scrollX=TRUE, searching = FALSE, paging = TRUE, dom = 'Bfrtip', buttons= c('copy', 'csv', 'excel')),
+      #tableR <- merge(tableR,articlesToValidate[,-3],by="position")
+      DT::datatable(tableR,extensions = 'Buttons', selection = 'single',rownames = FALSE,
+                    options = list(scrollX=TRUE, searching = FALSE, paging = TRUE, 
+                                   dom = 'Bfrtip', buttons= c('copy', 'csv', 'excel')),
                     class = "display")
     }
   })
-
   
+   # 
+   # output$atv <- DT::renderDataTable({
+   #    req(input$results_rows_selected)
+   #    if(articlesToValidateExists == 1){ 
+   #      DT::datatable(articlesToValidate[input$results_rows_selected,-3],options = list(autoWidth = TRUE, scrollX=TRUE))
+   #    }
+   #  })
+  
+  output$atv <- DT::renderDataTable({
+    if(articlesToValidateExists == 1){
+      aux <- articlesToValidate[,c(4,2,5,1)]
+      DT::datatable(aux,rownames = FALSE,options = list(scrollX=TRUE, searching = TRUE, paging = TRUE,pageLength=3))#,
+                                       #columnDefs=list(list(
+                                       #   targets = 4,
+                                       #   render = JS(
+                                       #     "function(data, type, row, meta) {",
+                                       #     "return type === 'display' && data.length > 6 ?",
+                                       #     "'<span title=\"' + data + '\">' + data.substr(0, 6) + '...</span>' : data;",
+                                       #     "}")
+                                       # ))), callback = JS('table.page(3).draw(false);'))
+    }
+  })
+  
+  auxData <- reactive({
+    aux <- expertsValidations
+    aux$questions <- as.factor(aux$questions)
+    levels(aux$questions) <- c("200","111","112","121","122")
+    aux$questions <- recode(aux$questions, "112"= "V-V-F","111"="V-V-V","122"="V-F-F","121"="VFV","200"="F")
+    aux
+  })
+
+  output$countUsersAnswersPlot <- renderPlot({
+    ggplot(auxData(),aes(x=username_id,fill=as.factor(questions))) +
+      geom_bar() +
+      coord_flip() +
+      scale_fill_brewer(palette = "Pastel1",name= "Posibles respuestas") +  
+      theme(legend.position="bottom")  + 
+      #labs(title = "Cantidad y tipo de respuestas por usuario") +
+      theme(panel.background=element_blank(),panel.border=element_blank(),panel.grid.major=element_blank(),
+            panel.grid.minor=element_blank(),plot.background=element_blank())
+  })
+  
+  output$countTypeAnswerPlot <- renderPlot({
+    # aux <- expertsValidations
+    # aux$questions <- as.factor(aux$questions)
+    # levels(aux$questions) <- c("200","111","112","121","122")
+    # aux$questions <- recode(aux$questions, "112"= "V-V-F","111"="V-V-V","122"="V-F-F","121"="VFV","200"="F")
+    ggplot(auxData(),aes(x= as.factor(questions),fill=as.factor(questions))) +
+      geom_bar() +
+      scale_fill_brewer(palette = "Pastel2",name= "Posibles respuestas") + 
+      theme(legend.position="bottom") +
+      geom_text(stat='count',aes(label=..count..),vjust=-0.7, size=3) +
+      #labs(title="Número de validaciones por tipo de respuesta") +
+      theme(panel.background=element_blank(),panel.border=element_blank(),panel.grid.major=element_blank(),
+            panel.grid.minor=element_blank(),plot.background=element_blank())
+  })
+  
+  output$usersValidations <- renderPlot({
+      colMain <- colorRampPalette(brewer.pal(8, "Pastel1"))(5)
+      heatmap(as.matrix(agreements[,2:(numExperts()+1)]),Colv = NA, Rowv = NA, scale="column",col = colMain,
+              xlab="Expertos",#ylab="Resúmenes",#main="Type of Error of summaries by Users",
+              labRow = paste0(agreements$position,"-",
+                              substr(articlesToValidate$title[which(agreements$position==articlesToValidate$position)],1,30),
+                              "..."))#=substr(tableAdmin$title,1,8))
+      #heatmap(heatmapData,Colv = NA, Rowv = NA, scale="column",col = colMain)
+      #legend(x="bottomright",fill=colMain) #,legend = names(typeErrors)
+  })
+  
+  ######
   #Manage Users
   ######
   
