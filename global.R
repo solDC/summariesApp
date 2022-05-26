@@ -30,6 +30,7 @@ filePathCf <- file.path(inputDir,"conf.csv")
 
 conf <- loadCSV(filePathCf)
 credentials <- loadCSV(filePathCd)
+message("Cargados credentials y conf")
 
 if( !is.null(conf)){
     articles <- loadCSV(paste0(inputDir,conf$fileArticles[nrow(conf)]))
@@ -39,20 +40,21 @@ if( !is.null(conf)){
   message("Salta de la aplicación. Se necesita el fichero de configuración para continuar.")
 }
 
-filePathAV <- file.path(outputDir,paste0("articlesToValidate-",conf$id[nrow(conf)],".rds"))
+filePathAV <- file.path(outputDir,paste0("articlesValidate-",conf$id[nrow(conf)],".rds"))
+print(filePathAV)
 if(file.exists(filePathAV)){
   articlesToValidate <- readRDS(filePathAV)
   articlesToValidateExists <- 1
-  numArticlesToValidate <- nrow(articlesToValidate)
   rm(articles)
   rm(summaries)
 }else{
   articlesToValidateExists <- 0
-  numArticlesToValidate <- NULL
   articlesToValidate <- NULL
+  message("need to create articlesToValidate")
 }
 
 filePathAg <- file.path(outputDir,paste0("agreements-",conf$id[nrow(conf)],".rds"))
+print(filePathAg)
 if(file.exists(filePathAg)){
   agreements <- readRDS(filePathAg)
   agreemExists <- 1
@@ -62,13 +64,14 @@ if(file.exists(filePathAg)){
   message("need to create agreements")
 }
 
-expValidExists <- 0
 filePathEV <- file.path(outputDir,paste0("validations-",conf$id[nrow(conf)],".rds"))
+print(filePathEV)
 if(file.exists(filePathEV)){
   expertsValidations <- readRDS(file=filePathEV)
   expValidExists <- 1
 }else{
   expValidExists <- 0
+  expertsValidations <- NULL
   message("Need to create expertsValidationsFile")
 }
 

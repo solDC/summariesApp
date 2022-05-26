@@ -16,13 +16,14 @@ library(ggplot2)
 #####
 loginpage <- div(id = "loginpage", style = "width: 500px; max-width: 100%; margin: 0 auto; padding: 20px;",
                  wellPanel(
-                   tags$h2("LOG IN", class = "text-center", style = "padding-top: 0;color:#333; font-weight:600;"),
-                   textInput("userName", placeholder="Username", label = tagList(icon("user"), "Username")),
-                   passwordInput("passwd", placeholder="Password", label = tagList(icon("unlock-alt"), "Password")),
+                   tags$h3("VALIDACIÓN DE RESÚMENES", class = "text-center", style = "padding-top: 0;color:#333; font-weight:600;"),
+                   br(),
+                   textInput("userName", placeholder="Username", label = tagList(icon("user"), "Nombre de usuario")),
+                   passwordInput("passwd", placeholder="Password", label = tagList(icon("unlock-alt"), "Contraseña")),
                    br(),
                    div(
                      style = "text-align: center;",
-                     actionButton("login", "SIGN IN", style = "color: white; background-color:#3c8dbc;
+                     actionButton("login", "ACCEDER", style = "color: white; background-color:#3c8dbc;
                                  padding: 10px 15px; width: 150px; cursor: pointer;
                                  font-size: 18px; font-weight: 600;"),#,icon=icon("far fa-sign-in",lib= "font-awesome")
                      shinyjs::hidden(
@@ -100,6 +101,7 @@ server <- function(input, output, session) {
   
   observe({
     rv$cred
+    print("Observe Login")
     if (USER$login == FALSE) {
       if (!is.null(input$login)) {
         if (input$login > 0) {
@@ -182,6 +184,7 @@ server <- function(input, output, session) {
       # Save last user access
       credentials["lastLogin"][which(credentials$username_id==USER$name),] <<- format(Sys.Date(),origin="1970-01-01")
       
+      print(typeUser())
       if(typeUser() == "expert"){
         if(conf$init[nrow(conf)] == 0){
           shinyalert(title="Experimento no iniciado. Puede salir de la aplicación.", closeOnClickOutside = TRUE, type="info")
@@ -215,10 +218,16 @@ server <- function(input, output, session) {
         }  
       }
       else{ #admin
-        if ((agreemExists == 1) && (conf$init[nrow(conf)]==1) && (conf$pendingAgreem[nrow(conf)] == 0)){
-          shinyalert(title = "Puede finalizar el experimento",
-                     text ="Los expertos han validado todos los resúmenes", closeOnClickOutside = TRUE, type="info")
+        print("entra en oberse button login admin")
+        if(!is.na(conf$pendingAgreem[nrow(conf)])){
+          if ((agreemExists == 1) && (conf$init[nrow(conf)]==1) && (conf$pendingAgreem[nrow(conf)] == 0)){
+            shinyalert(title = "Puede finalizar el experimento",
+                       text ="Los expertos han validado todos los resúmenes", closeOnClickOutside = TRUE, type="info")
+          }
+          print("sale if qeu creia daba error")
         }
+        
+        print(paste0("imprime numero filas conf :",nrow(conf)))
         if(nrow(conf) > 1){
           rv$listExp <<- conf$id[1:(nrow(conf)-1)]
           print(rv$listExp)
@@ -496,13 +505,20 @@ server <- function(input, output, session) {
                     )),
                   fluidRow(
                     box(width = 12, dataTableOutput("resultsPrev")),
-                    box(width = 12, dataTableOutput("atvSelected"))
+                    box(width = 12, 
+                        p("Seleccione una fila de la tabla anterior para ver los detalles del resumen:"),
+                        dataTableOutput("atvSelected"))
                   ),#fluidRow
           ),#tabItem dashboardPrev
           #####
           #Tab users
           ##### 
           tabItem(tabName = "users",
+                  fluidRow(
+                    infoBoxOutput("usersTotalBox"),
+                    infoBoxOutput("usersExpertsBox"),
+                    infoBoxOutput("usersAdminBox")
+                  ),
                   fluidRow(
                     box(width = 4, title = "Crear nuevo usuario",solidHeader = TRUE,status = "primary",
                         textInput("usernameInput", label = "Ingrese el nombre de usuario", value = ""),
@@ -604,7 +620,7 @@ server <- function(input, output, session) {
   
   output$expertValidatedBox <- renderInfoBox({
     infoBox(
-      "Validated Summaries",
+      "Validaciones",
       nrow((validations$positions)),
       icon = icon("fal fa-check",verify_fa = FALSE),   # ("glyphicon-check", lib = "glyphicon"),
       color = "olive"
@@ -613,7 +629,7 @@ server <- function(input, output, session) {
   
   output$expertPendingBox <- renderInfoBox({
     infoBox(
-      "Pending Validation",
+      "Pendientes",
       nrow(validations$pending), #length(validations$userTitles)
       icon = icon("fal fa-edit",verify_fa = FALSE), #("glyphicon-edit", lib = "glyphicon"),
       color = "maroon"
@@ -641,32 +657,32 @@ server <- function(input, output, session) {
   ######
   # SAVE VALIDATION AND UPDATE TITLES LIST
   observeEvent(input$validateButton,{
-    # Save validation (user's answers)
-    #####
-    validation <- data.frame(matrix(ncol=length(expertsValidations),nrow=1))
-    colnames(validation) <- colnames(expertsValidations)
-    #validation$idExp <- conf$id[nrow(conf)]
-    validation$idExp <- validations$id
-    validation$username_id <- USER$name
-    pos <- articlesToValidate %>% filter(title == input$selectTitle)  %>% select(position)
-    validation$position <- pos$position
-    validation$question1 <- as.integer(input$question1)
-    if(input$question1 == 2){
-      validation$question2 <- 0
-      validation$question3 <- 0
-    }
-    else{
-      validation$question2 <- as.integer(input$question2)
-      validation$question3 <- as.integer(input$question3)
-    }
-    validation$date <- format(Sys.Date(),origin="1970-01-01")
-    validation$articleTitle <- input$selectTitle
-    validation$questions  <- as.integer(validation$question1)*100+as.integer(validation$question2)*10+as.integer(validation$question3)
-    print(validation)
-    #####
-    
     # Do whats needed if the experiment is still running
     if((validations$id == conf$id[nrow(conf)]) && (conf$init[validations$id] == 1)){
+      # Save validation (user's answers)
+      #####
+      validation <- data.frame(matrix(ncol=length(expertsValidations),nrow=1))
+      colnames(validation) <- colnames(expertsValidations)
+      #validation$idExp <- conf$id[nrow(conf)]
+      validation$idExp <- validations$id
+      validation$username_id <- USER$name
+      pos <- articlesToValidate %>% filter(title == input$selectTitle)  %>% select(position)
+      validation$position <- pos$position
+      validation$question1 <- as.integer(input$question1)
+      if(input$question1 == 2){
+        validation$question2 <- 0
+        validation$question3 <- 0
+      }
+      else{
+        validation$question2 <- as.integer(input$question2)
+        validation$question3 <- as.integer(input$question3)
+      }
+      validation$date <- format(Sys.Date(),origin="1970-01-01")
+      validation$articleTitle <- input$selectTitle
+      validation$questions  <- as.integer(validation$question1)*100+as.integer(validation$question2)*10+as.integer(validation$question3)
+      print(validation)
+      #####
+      
       # Add validation to expertsValidations global dataframe
       #####
       expertsValidations <<- rbind(expertsValidations,validation)
@@ -680,16 +696,26 @@ server <- function(input, output, session) {
       agreements[rowIndex ,colIndex] <<- validation$questions
       agreements$numResp[rowIndex] <<- numExperts()-sum(is.na(agreements[rowIndex,2:(numExperts()+1)]))
       if(agreements$numResp[rowIndex] >= conf$minNumValid[nrow(conf)]){
+        #message(paste0("Num Resp: ",agreements$numResp[rowIndex]))
         comb <- combn(agreements[rowIndex,2:(numExperts()+1)],2,simplify = FALSE)
+        #message("Calcula combinaciones")
         agreements$posPairs[rowIndex] <<- calcPairs(agreements$numResp[rowIndex])
+        #message("Calcula possPairs")
         n <- numExperts()+8
         for(val in comb){
           agreements[rowIndex,n] <<- (val[1]==val[2])
+          #message("Calcula si los pares son o no iguales")
           n <- n+1
         }
+        #message("Va a calcular agreemCount qeu dio error en rowSums")
         agreements$agreemCount[rowIndex] <<- rowSums(agreements[rowIndex,(numExperts()+8):length(agreements)],na.rm = TRUE)
+        #print(paste0("agreements$agreemCount[rowIndex] ",agreements$agreemCount[rowIndex]))
+        #print(paste0("agreements$posPairs[rowIndex] ",agreements$posPairs[rowIndex]))
         agreements$agreemPerc[rowIndex] <<- round(agreements$agreemCount[rowIndex] / agreements$posPairs[rowIndex] * 100,2)
+        #print(paste0("agreements$agreemPerc[rowIndex] ",agreements$agreemPerc[rowIndex]))
+        #print(paste0("conf$minLevelAgreem[nrow(conf)] ",conf$minLevelAgreem[nrow(conf)]))
         if(agreements$agreemPerc[rowIndex] < conf$minLevelAgreem[nrow(conf)]){
+          #message("si el porcentaje de acuerdo es menor del configurado, da 0")
           agreements$agreedAnswer[rowIndex] <<- 0
         }
         else{
@@ -697,13 +723,12 @@ server <- function(input, output, session) {
           agreements$agreedAnswer[rowIndex] <<- strtoi(names(which.max(vec)))
         }
       }
+      #message("Deja de calcular agreement")
       # Check if there's agreement
       tableR <- agreements[,2:(numExperts()+1)]
-      tableR <- tableR %>% select_if(~ !all(is.na(.)))
-      #tableR <- tableR[,colSums(is.na(tableR))<nrow(tableR)]
       krip <- krippendorffs.alpha(as.matrix(tableR), level = "nominal", control = list(parallel = FALSE,bootit=100),verbose = TRUE)
       conf$kripp[nrow(conf)] <<- round(krip$alpha.hat,2)
-
+      #message("Calcula Krippendorf con la nueva validación")
       #####
       
       # Discard other titles that may have reached an agreement with the answers of other users.
@@ -712,9 +737,11 @@ server <- function(input, output, session) {
       if(!is.null(agreements)){
         posDiscard <- agreements %>% filter(agreemPerc >= conf$minLevelAgreem[nrow(conf)]) %>%  select(position)
         validations$pending <- subset(validations$pending,!(position %in% posDiscard$position))
-        
         conf$validAgreem[nrow(conf)] <<- nrow(posDiscard)
-        conf$pendingAgreem[nrow(conf)] <<- nrow(articlesToValidate) - conf$validAgreem
+        conf$pendingAgreem[nrow(conf)] <<- nrow(articlesToValidate) - conf$validAgreem[nrow(conf)]
+        # message(paste0("nrow(articlesToValidate) ",nrow(articlesToValidate)))
+        # message(paste0(""))
+        # message("Descarta, si toca, resumenes que tengan concenso")
       }
       #####
       
@@ -726,11 +753,12 @@ server <- function(input, output, session) {
       colnames(validations$positions) <- c("position")
       #validations$userTitles <- validations$pending[!(validations$pending$position %in% validations$positions$position),2]
       validations$pending <- validations$pending[!(validations$pending$position %in% validations$positions$position),]
+      #message("Descarta de lista de títulos a validar el qeu acaba de validar")
       #####
       
       #####  
       # Show confirmation to user and update list of titles pending to validate
-      if((nrow(validations$pending)==0)|| (conf$init[nrow(conf)] == 2)){
+      if((nrow(validations$pending)==0) || (conf$init[nrow(conf)] == 2)){
         shinyalert(title="Experimento finalizado. Puede salir de la aplicación.", closeOnClickOutside = TRUE, type="info")
       }
       else{
@@ -877,20 +905,14 @@ server <- function(input, output, session) {
   observeEvent(input$startValid,{
     req(samplePositions)
     # Create the table structures to calculate agreements and to save users answers
-    if(articlesToValidateExists == 0){
+    #if(articlesToValidateExists == 0){
       articlesToValidate <<- articles[samplePositions(),c(2,3,5)] # 
       articlesToValidate$position <<- samplePositions()
       articlesToValidate$summary <<- summaries[samplePositions(),]
       saveRDS(articlesToValidate,file=filePathAV)
-      rm(articles)
-      rm(summaries)
       articlesToValidateExists <<- 1
-      if(agreemExists == 1){
-        posDiscard <- agreements %>% filter(agreemPerc >= conf$minLevelAgreem[nrow(conf)]) %>% select(position)
-        articlesToValidate <<- subset(articlesToValidate,!(position %in% posDiscard$position))
-      }
-    }
-    if(agreemExists == 0){
+    #}
+    #if(agreemExists == 0){
       nameUsers <- credentials %>% filter(permission == "expert") %>%  select(username_id)
       aux1 <- cbind(samplePositions(),data.frame(matrix(ncol=nrow(nameUsers)+6,nrow=sampleSize())))
       colnames(aux1)[1] <- "position"
@@ -904,14 +926,15 @@ server <- function(input, output, session) {
       agreements <<- cbind(aux1,aux2)
       agreemExists <<- 1
       rv$init <<- rv$init + 1
-    }
-    if(expValidExists == 0){
+      saveRDS(agreements,file=filePathAg)
+    #}
+    #if(expValidExists == 0){
       expertsValidations <<- data.frame(matrix(ncol=9,nrow=0))
       colnames(expertsValidations) <<- c( "idExp","position","question1","question2","question3","questions","username_id","date","articleTitle")
-      #print(expertsValidations)
+      print(expertsValidations)
       expValidExists <<- 1
-    }
-    
+      saveRDS(expertsValidations,file=filePathEV)
+    #}
     # Show the Stop button and disable configuration buttons
     conf$init[nrow(conf)] <<- 1
     conf$dateInit[nrow(conf)] <<- format(Sys.Date(),origin="1970-01-01")
@@ -941,7 +964,7 @@ server <- function(input, output, session) {
     shinyjs::enable("changeTypeUser")
     nrowC <- nrow(conf)
     conf$dateStop[nrowC] <<- format(Sys.Date(),origin="1970-01-01")
-    conf$init[nrowC] <<- 2 #Terminado
+    conf$init[nrowC] <<- 2
     newConf <- conf[nrowC,]
     newConf$id <- conf$id[nrowC]+1
     newConf$init <- 0
@@ -955,16 +978,171 @@ server <- function(input, output, session) {
     saveRDS(agreements,file=filePathAg)
     filePathAg <<- file.path(outputDir,paste0("agreements-",conf$id[nrow(conf)],".rds"))
     agreemExists <<- 0
+    agreements <<- NULL
     saveRDS(expertsValidations,file=filePathEV)
-    filePathEV <- file.path(outputDir,paste0("validations-",conf$id[nrow(conf)],".rds"))
+    filePathEV <<- file.path(outputDir,paste0("validations-",conf$id[nrow(conf)],".rds"))
     expValidExists <<- 0
+    expertsValidations <<- NULL
     saveRDS(articlesToValidate,file=filePathAV)
-    filePathAV <- file.path(outputDir,paste0("articlesValidate-",conf$id[nrow(conf)],".rds"))
+    filePathAV <<- file.path(outputDir,paste0("articlesValidate-",conf$id[nrow(conf)],".rds"))
+    articlesToValidateExists <<- 0
+    articlesToValidate <<- NULL
     rv$newExp <<- rv$newExp + 1
     rv$init <<- rv$init + 1
+    articles <<- loadCSV(paste0(inputDir,conf$fileArticles[nrow(conf)]))
+    summaries <<- loadCSV(paste0(inputDir,conf$fileSummaries[nrow(conf)]))
     
     rv$listExp <<- nrow(conf)-1
     updateSelectInput(session,"selectIdExp",label = "",choices = rv$listExp)
+  })
+  
+  
+  ######
+  #Validation Status Current
+  ######
+  
+  output$agreementBox <- renderInfoBox({
+    rv$newExp
+    invalidateLater(10000,session)
+    infoBox(
+      "Alpha Krippendorff",
+      conf$kripp[nrow(conf)], 
+      icon = icon("fal fa-handshake",verify_fa = FALSE),
+      color = "purple"
+    )
+  })
+  
+  output$validatedBox <- renderInfoBox({
+    rv$newExp
+    invalidateLater(10000,session)
+    infoBox(
+      "Validados con acuerdo",
+      conf$validAgreem[nrow(conf)],
+      icon = icon("fal fa-check",verify_fa = FALSE),   # ("glyphicon-check", lib = "glyphicon"),
+      color = "olive"
+    )
+  })
+  
+  output$pendingBox <- renderInfoBox({
+    rv$newExp
+    invalidateLater(10000,session)
+    infoBox(
+      "Pendientes de acuerdo",
+      conf$pendingAgreem[nrow(conf)],
+      icon = icon("fal fa-edit",verify_fa = FALSE), #("glyphicon-edit", lib = "glyphicon"),
+      color = "maroon"
+    )
+  })
+  
+  output$results <-  DT::renderDataTable({
+    rv$newExp
+    invalidateLater(30000,session)
+    if(agreemExists == 1){ 
+      colIndex <- which(colnames(agreements)=="numResp")
+      tableR <- agreements[1:colIndex]
+      cols <- c(2:(colIndex-1))
+      for (j in cols){
+        for(i in 1:nrow(tableR)){
+          tableR[i,j] <- ifelse(tableR[i,j] == 200,"F",
+                                ifelse(tableR[i,j] == 111,"V-V-V",
+                                       ifelse(tableR[i,j] == 112,"V-V-F",
+                                              ifelse(tableR[i,j] == 121,"V-F-V",
+                                                     ifelse(tableR[i,j] == 122, "V-F-F","Sin acuerdo")))))
+        }
+      }
+      agreement <- ifelse(!is.na(agreements$agreemPerc),paste0(agreements$agreemPerc,"%"),"")
+      tableR <- cbind(tableR,agreement)
+      #tableR <- tableR %>% select_if(~ !all(is.na(.)))
+      answers <- agreements$agreedAnswer
+      n <- 1
+      for(val in answers){
+        answers[n] <- ifelse(val == 200,"F",ifelse(val == 111,"V-V-V",
+                                                   ifelse(val == 112,"V-V-F",ifelse(val == 121,"V-F-V",
+                                                                                    ifelse(val == 122, "V-F-F","Sin acuerdo")))))
+        n <- n+1
+      }
+      tableR <- cbind(tableR,answers)
+      colnames(tableR)[colnames(tableR) == 'position'] <- "Id"
+      colnames(tableR)[colnames(tableR) == 'numResp'] <- "Número respuestas"
+      colnames(tableR)[colnames(tableR) == 'answers'] <- "Respuesta acordada"
+      colnames(tableR)[colnames(tableR) == 'agreement'] <- "Acuerdo alcanzado"
+      #tableR <- tableR[,c(1,(length(tableR)-2):length(tableR),2:(length(tableR)-3))]
+      
+      #tableR <- merge(tableR,articlesToValidate[,-3],by="position")
+      DT::datatable(tableR,extensions = 'Buttons', selection = 'single',rownames = FALSE,
+                    options = list(scrollX=TRUE, searching = FALSE, paging = TRUE, pageLength=10,
+                                   dom = 'Bfrtip', buttons= c('copy', 'csv', 'excel')),
+                    class = "display")
+    }
+  })
+  
+  output$atv <- DT::renderDataTable({
+    rv$newExp
+    invalidateLater(10000,session)
+    if(articlesToValidateExists == 1){
+      aux <- articlesToValidate[,c(4,2,5,1)]
+      colnames(aux) <- c("Id","Título","Resumen","URL")
+      limit <- min(nchar(aux$URL))
+      aux$URL <- paste0('<a  target=_blank href=', aux$URL, '>', substr(aux$URL,13,limit),'</a>' ) 
+      DT::datatable(aux,rownames = FALSE,escape=FALSE,options = list(autoWidth = TRUE, scrollX=TRUE, searching = TRUE, paging = TRUE,pageLength=5))
+    }
+  })
+  
+  auxData <- reactive({
+    rv$newExp
+    if(!is.null(expertsValidations)){
+      aux <- expertsValidations
+      aux$questions <- as.factor(aux$questions)
+      levels(aux$questions) <- c("200","111","112","121","122")
+      aux$questions <- recode(aux$questions, "112"= "V-V-F","111"="V-V-V","122"="V-F-F","121"="VFV","200"="F")
+      colnames(aux)[colnames(aux) == 'questions'] <- "Respuestas"
+    }
+    else{
+      aux <- NULL
+    }
+    aux
+  })
+  
+  output$countUsersAnswersPlot <- renderPlot({
+    rv$newExp
+    if(!is.null(auxData())){
+      ggplot(auxData(),aes(x=username_id,fill=as.factor(Respuestas))) +
+        geom_bar() +
+        coord_flip() +
+        scale_fill_brewer(palette = "Pastel1",name= "Posibles respuestas") +  
+        theme(legend.position="bottom")  + 
+        #labs(title = "Cantidad y tipo de respuestas por usuario") +
+        theme(panel.background=element_blank(),panel.border=element_blank(),panel.grid.major=element_blank(),
+              panel.grid.minor=element_blank(),plot.background=element_blank())
+    }
+  })
+  
+  output$countTypeAnswerPlot <- renderPlot({
+    rv$newExp
+    if(!is.null(auxData())){
+      ggplot(auxData(),aes(x= as.factor(Respuestas),fill=as.factor(Respuestas))) +
+        geom_bar() +
+        scale_fill_brewer(palette = "Pastel2",name= "Posibles respuestas") + 
+        theme(legend.position="bottom") +
+        geom_text(stat='count',aes(label=..count..),vjust=-0.7, size=3) +
+        #labs(title="Número de validaciones por tipo de respuesta") +
+        theme(panel.background=element_blank(),panel.border=element_blank(),panel.grid.major=element_blank(),
+              panel.grid.minor=element_blank(),plot.background=element_blank())
+    }
+  })
+  
+  output$usersValidations <- renderPlot({
+    rv$newExp
+    if(exists("agreements") && (!is.null(agreements)) && (nrow(expertsValidations) > 1)){
+      colMain <- colorRampPalette(brewer.pal(8, "Pastel1"))(5)
+      heatmap(as.matrix(agreements[,2:(numExperts()+1)]),Colv = NA, Rowv = NA, scale="column",col = colMain,
+              xlab="Expertos",#ylab="Resúmenes",#main="Type of Error of summaries by Users",
+              labRow = paste0(agreements$position,"-",
+                              substr(articlesToValidate$title[which(agreements$position==articlesToValidate$position)],1,30),
+                              "..."))#=substr(tableAdmin$title,1,8))
+      #heatmap(heatmapData,Colv = NA, Rowv = NA, scale="column",col = colMain)
+      #legend(x="bottomright",fill=colMain) #,legend = names(typeErrors)
+    }
   })
   
   
@@ -975,10 +1153,8 @@ server <- function(input, output, session) {
   observeEvent(input$selectIdBtn,{
     if(input$selectIdExp > 0){
       filesAdmin$index <- unlist(conf %>% filter(id == input$selectIdExp) %>% select(id))
-      print(paste0("filesAdmin$index: ",filesAdmin$index))
-      #if (conf$init[filesAdmin$index] != 0){ #Si el experimento ha iniciado o terminado ya existe el fichero agreements, lo cargo
+      #print(paste0("filesAdmin$index: ",filesAdmin$index))
       filesAdmin$agreem <- readRDS(file.path(outputDir,paste0("agreements-",conf$id[filesAdmin$index],".rds")))
-      #}
     }
   })
 
@@ -1073,7 +1249,19 @@ server <- function(input, output, session) {
         print("Pinta la tabla admin")
         colIndex <- which(colnames(filesAdmin$agreem)=="numResp")
         tableR <- filesAdmin$agreem[1:colIndex]
-        agreement <- ifelse(!is.na(agreements$agreemPerc),paste0(agreements$agreemPerc,"%"),"")
+        
+        cols <- c(2:(colIndex-1))
+        for (j in cols){
+          for(i in 1:nrow(tableR)){
+            tableR[i,j] <- ifelse(tableR[i,j] == 200,"F",
+                                  ifelse(tableR[i,j] == 111,"V-V-V",
+                                         ifelse(tableR[i,j] == 112,"V-V-F",
+                                                ifelse(tableR[i,j] == 121,"V-F-V",
+                                                       ifelse(tableR[i,j] == 122, "V-F-F","Sin acuerdo")))))
+          }
+        }
+        
+        agreement <- ifelse(!is.na(filesAdmin$agreem$agreemPerc),paste0(filesAdmin$agreem$agreemPerc,"%"),"")
         tableR <- cbind(tableR,agreement)
         #tableR <- tableR[,colSums(is.na(tableR))<nrow(tableR)] #discard columns with no even one answer
         answers <- filesAdmin$agreem$agreedAnswer
@@ -1085,160 +1273,81 @@ server <- function(input, output, session) {
           n <- n+1
         }
         tableR <- cbind(tableR,answers)
-        atv <- readRDS(paste0(outputDir,"articlesToValidate-",conf$id[filesAdmin$index],".rds"))
-        tableR <- merge(tableR,atv,by="position",all=TRUE)
-        DT::datatable(tableR,extensions = 'Buttons',
-                      options = list(autoWidth = TRUE, scrollX=TRUE, searching = FALSE, paging = TRUE, dom = 'Bfrtip', buttons= c('copy', 'csv', 'excel')),
-                      class = "display")
+        colnames(tableR)[colnames(tableR) == 'position'] <- "Id"
+        colnames(tableR)[colnames(tableR) == 'numResp'] <- "Número respuestas"
+        colnames(tableR)[colnames(tableR) == 'answers'] <- "Respuesta acordada"
+        colnames(tableR)[colnames(tableR) == 'agreement'] <- "Acuerdo alcanzado"
+        tableR <- tableR[,c(1,(length(tableR)-2):length(tableR),2:(length(tableR)-3))]
+        
+        DT::datatable(tableR,selection = 'single',rownames = FALSE,
+                      options = list(autoWidth = TRUE, scrollX=TRUE, searching = FALSE, paging = TRUE))
       }
     }
   })
   
   observe({
     req(input$resultsPrev_rows_selected)
-    dataATV <- file.path(outputDir,paste0("articlesToValidate-",filesAdmin$index,".rds"))
-    output$atvSelected <- DT::renderDataTable({
-      DT::datatable(dataATV[input$resultsPrev_rows_selected,],options = list(autoWidth = TRUE, scrollX=TRUE))
-    })
-  })
-  
-  
-  ######
-  #Validation Status Current
-  ######
-  
-  output$agreementBox <- renderInfoBox({
-    invalidateLater(10000,session)
-    infoBox(
-      "Krippendorff's Alpha",
-      conf$kripp[nrow(conf)], 
-      icon = icon("fal fa-handshake",verify_fa = FALSE),
-      color = "purple"
-    )
-  })
-  
-  output$validatedBox <- renderInfoBox({
-    invalidateLater(10000,session)
-    infoBox(
-      "Validados con acuerdo",
-      conf$validAgreem[nrow(conf)],
-      icon = icon("fal fa-check",verify_fa = FALSE),   # ("glyphicon-check", lib = "glyphicon"),
-      color = "olive"
-    )
-  })
-  
-  output$pendingBox <- renderInfoBox({
-    invalidateLater(10000,session)
-    infoBox(
-      "Pendientes de validar",
-      conf$pendingAgreem[nrow(conf)],
-      icon = icon("fal fa-edit",verify_fa = FALSE), #("glyphicon-edit", lib = "glyphicon"),
-      color = "maroon"
-    )
-  })
-  
-  output$results <-  DT::renderDataTable({
-    invalidateLater(30000,session)
-    if(agreemExists == 1){ 
-      colIndex <- which(colnames(agreements)=="numResp")
-      tableR <- agreements[1:colIndex]
-      agreement <- ifelse(!is.na(agreements$agreemPerc),paste0(agreements$agreemPerc,"%"),"")
-      tableR <- cbind(tableR,agreement)
-      tableR <- tableR %>% select_if(~ !all(is.na(.)))
-      #tableR <- tableR[,colSums(is.na(tableR))<nrow(tableR)] #discard columns with no even one answer
-      answers <- agreements$agreedAnswer
-      n <- 1
-      for(val in answers){
-        answers[n] <- ifelse(val == 200,"F",ifelse(val == 111,"V-V-V",
-                                                   ifelse(val == 112,"V-V-F",ifelse(val == 121,"V-F-V",
-                                                                                    ifelse(val == 122, "V-F-F","Sin acuerdo")))))
-        n <- n+1
-      }
-      tableR <- cbind(tableR,answers)
-      #tableR <- merge(tableR,articlesToValidate[,-3],by="position")
-      DT::datatable(tableR,extensions = 'Buttons', selection = 'single',rownames = FALSE,
-                    options = list(scrollX=TRUE, searching = FALSE, paging = TRUE, 
-                                   dom = 'Bfrtip', buttons= c('copy', 'csv', 'excel')),
-                    class = "display")
+    
+    filePathATV <- file.path(outputDir,paste0("articlesValidate-",filesAdmin$index,".rds"))
+    if(file.exists(filePathAV)){
+      dataATV <-  readRDS(filePathAV)
+    }else{
+      dataATV <- NULL
     }
-  })
-  
-   # 
-   # output$atv <- DT::renderDataTable({
-   #    req(input$results_rows_selected)
-   #    if(articlesToValidateExists == 1){ 
-   #      DT::datatable(articlesToValidate[input$results_rows_selected,-3],options = list(autoWidth = TRUE, scrollX=TRUE))
-   #    }
-   #  })
-  
-  output$atv <- DT::renderDataTable({
-    if(articlesToValidateExists == 1){
-      aux <- articlesToValidate[,c(4,2,5,1)]
-      DT::datatable(aux,rownames = FALSE,options = list(scrollX=TRUE, searching = TRUE, paging = TRUE,pageLength=3))#,
-                                       #columnDefs=list(list(
-                                       #   targets = 4,
-                                       #   render = JS(
-                                       #     "function(data, type, row, meta) {",
-                                       #     "return type === 'display' && data.length > 6 ?",
-                                       #     "'<span title=\"' + data + '\">' + data.substr(0, 6) + '...</span>' : data;",
-                                       #     "}")
-                                       # ))), callback = JS('table.page(3).draw(false);'))
-    }
-  })
-  
-  auxData <- reactive({
-    aux <- expertsValidations
-    aux$questions <- as.factor(aux$questions)
-    levels(aux$questions) <- c("200","111","112","121","122")
-    aux$questions <- recode(aux$questions, "112"= "V-V-F","111"="V-V-V","122"="V-F-F","121"="VFV","200"="F")
-    aux
-  })
 
-  output$countUsersAnswersPlot <- renderPlot({
-    ggplot(auxData(),aes(x=username_id,fill=as.factor(questions))) +
-      geom_bar() +
-      coord_flip() +
-      scale_fill_brewer(palette = "Pastel1",name= "Posibles respuestas") +  
-      theme(legend.position="bottom")  + 
-      #labs(title = "Cantidad y tipo de respuestas por usuario") +
-      theme(panel.background=element_blank(),panel.border=element_blank(),panel.grid.major=element_blank(),
-            panel.grid.minor=element_blank(),plot.background=element_blank())
+    output$atvSelected <- DT::renderDataTable({
+      if(!is.null(dataATV)){
+        colnames(dataATV) <- c("URL","Título","Texto","Id","Resumen")
+        dataATV <- dataATV[,c(4,2,3,5,1)]
+        limit <- min(nchar(dataATV$URL))
+        dataATV$URL <- paste0('<a  target=_blank href=', dataATV$URL, '>', substr(dataATV$URL,13,limit),'</a>' ) 
+        DT::datatable(dataATV[input$resultsPrev_rows_selected, -c(3)], selection = 'single',rownames = FALSE,
+                    options = list(autoWidth = TRUE, scrollX=TRUE))
+      }
+    })
+    
   })
   
-  output$countTypeAnswerPlot <- renderPlot({
-    # aux <- expertsValidations
-    # aux$questions <- as.factor(aux$questions)
-    # levels(aux$questions) <- c("200","111","112","121","122")
-    # aux$questions <- recode(aux$questions, "112"= "V-V-F","111"="V-V-V","122"="V-F-F","121"="VFV","200"="F")
-    ggplot(auxData(),aes(x= as.factor(questions),fill=as.factor(questions))) +
-      geom_bar() +
-      scale_fill_brewer(palette = "Pastel2",name= "Posibles respuestas") + 
-      theme(legend.position="bottom") +
-      geom_text(stat='count',aes(label=..count..),vjust=-0.7, size=3) +
-      #labs(title="Número de validaciones por tipo de respuesta") +
-      theme(panel.background=element_blank(),panel.border=element_blank(),panel.grid.major=element_blank(),
-            panel.grid.minor=element_blank(),plot.background=element_blank())
-  })
-  
-  output$usersValidations <- renderPlot({
-      colMain <- colorRampPalette(brewer.pal(8, "Pastel1"))(5)
-      heatmap(as.matrix(agreements[,2:(numExperts()+1)]),Colv = NA, Rowv = NA, scale="column",col = colMain,
-              xlab="Expertos",#ylab="Resúmenes",#main="Type of Error of summaries by Users",
-              labRow = paste0(agreements$position,"-",
-                              substr(articlesToValidate$title[which(agreements$position==articlesToValidate$position)],1,30),
-                              "..."))#=substr(tableAdmin$title,1,8))
-      #heatmap(heatmapData,Colv = NA, Rowv = NA, scale="column",col = colMain)
-      #legend(x="bottomright",fill=colMain) #,legend = names(typeErrors)
-  })
-  
+ 
   ######
   #Manage Users
   ######
   
+  output$usersTotalBox <- renderInfoBox({
+    rv$cred
+    infoBox(
+      "Total",
+      nrow(credentials),
+      icon = icon("fal fa-users",verify_fa = FALSE),   # ("glyphicon-check", lib = "glyphicon"),
+      color = "purple"
+    )
+  })
+  
+  output$usersExpertsBox <- renderInfoBox({
+    rv$cred
+    infoBox(
+      "Expertos",
+      count(credentials %>% filter(permission == "expert")),
+      icon = icon("fal fa-user",verify_fa = FALSE),   # ("glyphicon-check", lib = "glyphicon"),
+      color = "olive"
+    )
+  })
+  
+  output$usersAdminBox <- renderInfoBox({
+    rv$cred
+    infoBox(
+      "Administradores",
+      count(credentials %>% filter(permission == "admin")),
+      icon = icon("fal fa-user-cog",verify_fa = FALSE), #("glyphicon-edit", lib = "glyphicon"),
+      color = "maroon"
+    )
+  })
+  
   output$tableUsers <-  DT::renderDataTable({
     rv$cred
-    data <- credentials %>% select(username_id,permission) %>% filter(permission %in% input$cgTypeUser)
-    datatable(data, options = list(autoWidth = TRUE,searching = FALSE))
+    data <- credentials %>% select(username_id,permission,lastLogin) %>% filter(permission %in% input$cgTypeUser)
+    colnames(data) <- c("Nombre de usuario","Tipo de usuario","Último login")
+    datatable(data, rownames = FALSE, options = list(autoWidth = FALSE,searching = FALSE))
   })
   
   #####
