@@ -31,15 +31,7 @@ loginpage <- div(id = "loginpage", style = "width: 500px; max-width: 100%; margi
                            tags$p("Oops! Incorrect username or password!",
                                   style = "color: red; font-weight: 600; 
                                             padding-top: 5px;font-size:16px;", 
-                                  class = "text-center"))),
-                     br(),
-                     #a("Create new account"),
-                     br(),
-                     tags$code("Username: admin  Password: adminpass"),
-                     br(),
-                     tags$code("Username: user1  Password: pass1"),
-                     br(),
-                     tags$code("Username: user2  Password: pass2")
+                                  class = "text-center")))
                    ))
 )
 
@@ -160,8 +152,8 @@ server <- function(input, output, session) {
           id="tabsAdmin",
           menuItem('Configurar experimento', tabName = "manageEvalSummaries", icon = icon("fal fa-cog",verify_fa = FALSE)),
           menuItem('Estado experimento', tabName = "dashboadEvalSummaries", icon = icon("tachometer-alt",lib = "font-awesome",verify_fa = FALSE)),
-          menuItem('Gestionar Usuarios', tabName = "users", icon = icon("fal fa-user",verify_fa = FALSE)),
-          menuItem('Guardar workspace', tabName = "manageData", icon = icon("fal fa-database",verify_fa = FALSE)),
+          menuItem('Gestionar usuarios', tabName = "users", icon = icon("fal fa-user",verify_fa = FALSE)),
+          menuItem('Gestionar datos', tabName = "manageData", icon = icon("fal fa-database",verify_fa = FALSE)),
           menuItem('Resultados anteriores', tabName = "dashboadPrev", icon = icon("fal fa-history",lib = "font-awesome",verify_fa = FALSE))
         )
       }
@@ -275,17 +267,17 @@ server <- function(input, output, session) {
                     box(
                       width=12, title="4- VALIDACIÓN: conteste las preguntas sobre el resumen",
                       status = "primary", solidHeader = TRUE, collapsible = FALSE,
-                      radioButtons("question1", label = ("El resumen generado: ¿trasmite la idea general del artículo?"),
-                                   choices = list("Verdadero" = 1, "Falso" = 2),
-                                   selected = 2), #character(0)),
+                      radioButtons("question1", label = ("El resumen generado, ¿trasmite la idea general del artículo?"),
+                                   choices = list("Sí" = 1, "No" = 2),
+                                   selected = 2), 
                       conditionalPanel(
                         condition = "input.question1 == 1",
                         radioButtons("question2", label = ("2- El resumen, ¿contiene información inconsistente con el artículo?"),
-                                     choices = list("Verdadero" = 1, "Falso" = 2),
-                                     selected = 2), #character(0)),
+                                     choices = list("Sí" = 1, "No" = 2),
+                                     selected = 2),
                         radioButtons("question3", label = ("3- El resumen, ¿contiene alguna información que no puede ser inferida del artículo?"),
-                                     choices = list("Verdadero" = 1, "Falso" = 2),
-                                     selected = 2) #character(0))
+                                     choices = list("Sí" = 1, "No" = 2),
+                                     selected = 2) 
                       ), #conditional panel
                       actionButton('validateButton',span("Validar Resumen",id="UpdateAnimateValidateButton",class="")),
                       ######
@@ -424,15 +416,20 @@ server <- function(input, output, session) {
           # tab status
           #####
           tabItem(tabName ="dashboadEvalSummaries",
+                  fluidRow(
+                    box(width = 12, title="Estado del experimento",solidHeader = TRUE, status="primary",
+                        p("En cada sección se puede consultar el estado del último experimento configurado. Solamente 
+                          se verán resultados cuando el experimento haya iniciado.")
+                    )),
                   fluidRow(               
                     box(width = 12, title="Preguntas realizadas en el experimento",solidHeader = TRUE, status="primary",
                         collapsible = TRUE, #collapsed = TRUE,
                         p("En cada experimento, ", strong(" se realizan entre una y tres preguntas "),"al usuario ",
-                          strong("sobre el resumen ") ,"generado que pueden ser ",strong("verdaderas o falsas"),":"),
-                        p(strong("Pregunta 1: "),"El resumen generado: ¿trasmite la idea general del artículo? Verdadero/Falso"),
-                        p(strong("Solo si la pregunta 1 es Verdadera:")),
-                        p(strong("Pregunta 2: "),"El resumen, ¿contiene información inconsistente con el artículo? Verdadero/Falso"),
-                        p(strong("Pregunta 3: "),"El resumen, ¿contiene alguna información que no puede ser inferida del artículo? Verdadero/Falso"),
+                          strong("sobre el resumen ") ,"generado que pueden responderse con un ",strong("sí o no"),":"),
+                        p(strong("Pregunta 1: "),"El resumen generado: ¿trasmite la idea general del artículo? Sí/No"),
+                        p(strong("Solo si ha contestado sí la pregunta 1:")),
+                        p(strong("Pregunta 2: "),"El resumen, ¿contiene información inconsistente con el artículo? Sí/No"),
+                        p(strong("Pregunta 3: "),"El resumen, ¿contiene alguna información que no puede ser inferida del artículo? Sí/No"),
                     )),
                   fluidRow(
                     box(width = 12, title= "Principales indicadores",solidHeader = TRUE, status="primary",
@@ -454,14 +451,18 @@ server <- function(input, output, session) {
                             plotOutput("countTypeAnswerPlot"))
                     ),
                   ),#fluidRow
-                  fluidRow(
-                    box(width = 12,title="Heatmap: tipo de respuestas por usuario",solidHeader = TRUE, status="primary",
-                        plotOutput("usersValidations"))
-                  ),
+                  # fluidRow(
+                  #   box(width = 12,title="Heatmap: tipo de respuestas por usuario",solidHeader = TRUE, status="primary",
+                  #       plotOutput("usersValidations"))
+                  # ),
  
           ),#tabItem dashboardPrev
           #####
           tabItem(tabName ="dashboadPrev",
+                  fluidRow(
+                    box(width = 12, title="Estado de experimentos finalizados",solidHeader = TRUE, status="primary",
+                      p("En cada sección se puede consultar el estado de experimentos anteriores.")
+                  )),
                   fluidRow(
                     box(width = 12, title = "Seleccione el id del experimento",solidHeader = TRUE,status="primary",
                         collapsible = TRUE, #collapsed = TRUE,
@@ -491,11 +492,11 @@ server <- function(input, output, session) {
                     box(width = 12, title="Preguntas realizadas en el experimento",solidHeader = TRUE, status="primary",
                         collapsible = TRUE, #collapsed = TRUE,
                         p("En cada experimento, ", strong(" se realizan entre una y tres preguntas "),"al usuario ",
-                          strong("sobre el resumen ") ,"generado que pueden ser ",strong("verdaderas o falsas"),":"),
-                        p(strong("Pregunta 1: "),"El resumen generado: ¿trasmite la idea general del artículo? Verdadero/Falso"),
-                        p(strong("Solo si la pregunta 1 es Verdadera:")),
-                        p(strong("Pregunta 2: "),"El resumen, ¿contiene información inconsistente con el artículo? Verdadero/Falso"),
-                        p(strong("Pregunta 3: "),"El resumen, ¿contiene alguna información que no puede ser inferida del artículo? Verdadero/Falso"),
+                          strong("sobre el resumen ") ,"generado que pueden ser repondidas con un ",strong("sí o no"),":"),
+                        p(strong("Pregunta 1: "),"El resumen generado: ¿trasmite la idea general del artículo? Sí/No"),
+                        p(strong("Solo si ha contestado sí la pregunta 1:")),
+                        p(strong("Pregunta 2: "),"El resumen, ¿contiene información inconsistente con el artículo? Sí/No"),
+                        p(strong("Pregunta 3: "),"El resumen, ¿contiene alguna información que no puede ser inferida del artículo? Sí/No"),
                     )),
                   fluidRow(
                     box(width = 12, title= "Principales indicadores",solidHeader = TRUE, status="primary",
@@ -514,6 +515,10 @@ server <- function(input, output, session) {
           #Tab users
           ##### 
           tabItem(tabName = "users",
+                  fluidRow(
+                    box(width = 12, title="Gestión de usuarios",solidHeader = TRUE, status="primary",
+                      p("En esta sección se pueden crear, consultar y modificar usuarios.")
+                  )),
                   fluidRow(
                     infoBoxOutput("usersTotalBox"),
                     infoBoxOutput("usersExpertsBox"),
@@ -552,21 +557,27 @@ server <- function(input, output, session) {
           #Tab manageData
           ##### 
           tabItem(tabName = "manageData",
-                  box(width = 6, title = "Ficheros de entrada a la app (inputs)",solidHeader = TRUE,status = "primary",
+                  fluidRow(
+                    box(width = 12, title="Gestión de datos",solidHeader = TRUE, status="primary",
+                        p("En esta sección se pueden descargar los ficheros y el workspace de la aplicación.")
+                    )),
+                  fluidRow(
+                    box(width = 6, title = "Ficheros de entrada a la app (inputs)",solidHeader = TRUE,status = "primary",
                       selectInput("selectInputFile", label = "Seleccione el fichero que quiera descargar", 
                                   choices = list.files(inputDir), 
                                   selected = 1),
                       downloadButton("downloadInputFile",label = "Descargar")
-                  ),
-                  box(width = 6, title = "Ficheros de entrada a la app (inputs)",solidHeader = TRUE,status = "primary",
+                  )),
+                  fluidRow(box(width = 6, title = "Ficheros de entrada a la app (inputs)",solidHeader = TRUE,status = "primary",
                       selectInput("selectOutputFile", label = "Seleccione el fichero que quiera descargar", 
                                   choices = list.files(outputDir), 
                                   selected = 1),
                       downloadButton("downloadOutputFile",label = "Descargar")
-                  ),
+                  )),
                   box(width = 6, title = "Guardar workspace actual",solidHeader = TRUE,status = "primary",
                       #actionButton("saveImage", label = "Guardar")
                       actionButton("saveImage", span("Guardar Imagen en disco", id="UpdateAnimateSaveImage", class="")),
+                      #####
                       tags$head(tags$style(type="text/css", '
             .loading {
                 display: inline-block;
@@ -657,6 +668,7 @@ server <- function(input, output, session) {
   ######
   # SAVE VALIDATION AND UPDATE TITLES LIST
   observeEvent(input$validateButton,{
+    shinyjs::disable("validateButton")
     # Do whats needed if the experiment is still running
     if((validations$id == conf$id[nrow(conf)]) && (conf$init[validations$id] == 1)){
       # Save validation (user's answers)
@@ -769,6 +781,7 @@ server <- function(input, output, session) {
     else{
       shinyalert(title="Experimento finalizado. Puede salir d ela apliación.",type="info")
     }
+    shinyjs::enable("validateButton")
   })
   
   
@@ -926,14 +939,14 @@ server <- function(input, output, session) {
       agreements <<- cbind(aux1,aux2)
       agreemExists <<- 1
       rv$init <<- rv$init + 1
-      saveRDS(agreements,file=filePathAg)
+      #saveRDS(agreements,file=filePathAg)
     #}
     #if(expValidExists == 0){
       expertsValidations <<- data.frame(matrix(ncol=9,nrow=0))
       colnames(expertsValidations) <<- c( "idExp","position","question1","question2","question3","questions","username_id","date","articleTitle")
       print(expertsValidations)
       expValidExists <<- 1
-      saveRDS(expertsValidations,file=filePathEV)
+      #saveRDS(expertsValidations,file=filePathEV)
     #}
     # Show the Stop button and disable configuration buttons
     conf$init[nrow(conf)] <<- 1
@@ -1043,11 +1056,11 @@ server <- function(input, output, session) {
       cols <- c(2:(colIndex-1))
       for (j in cols){
         for(i in 1:nrow(tableR)){
-          tableR[i,j] <- ifelse(tableR[i,j] == 200,"F",
-                                ifelse(tableR[i,j] == 111,"V-V-V",
-                                       ifelse(tableR[i,j] == 112,"V-V-F",
-                                              ifelse(tableR[i,j] == 121,"V-F-V",
-                                                     ifelse(tableR[i,j] == 122, "V-F-F","Sin acuerdo")))))
+          tableR[i,j] <- ifelse(tableR[i,j] == 200,"No",
+                                ifelse(tableR[i,j] == 111,"Sí-Sí-Sí",
+                                       ifelse(tableR[i,j] == 112,"Sí-Sí-No",
+                                              ifelse(tableR[i,j] == 121,"Sí-No-Sí",
+                                                     ifelse(tableR[i,j] == 122, "Sí-No-No","Sin acuerdo")))))
         }
       }
       agreement <- ifelse(!is.na(agreements$agreemPerc),paste0(agreements$agreemPerc,"%"),"")
@@ -1056,9 +1069,9 @@ server <- function(input, output, session) {
       answers <- agreements$agreedAnswer
       n <- 1
       for(val in answers){
-        answers[n] <- ifelse(val == 200,"F",ifelse(val == 111,"V-V-V",
-                                                   ifelse(val == 112,"V-V-F",ifelse(val == 121,"V-F-V",
-                                                                                    ifelse(val == 122, "V-F-F","Sin acuerdo")))))
+        answers[n] <- ifelse(val == 200,"No",ifelse(val == 111,"Sí-Sí-Sí",
+                                                   ifelse(val == 112,"Sí-Sí-No",ifelse(val == 121,"Sí-No-Sí",
+                                                                                    ifelse(val == 122, "Sí-No-No","Sin acuerdo")))))
         n <- n+1
       }
       tableR <- cbind(tableR,answers)
@@ -1066,7 +1079,7 @@ server <- function(input, output, session) {
       colnames(tableR)[colnames(tableR) == 'numResp'] <- "Número respuestas"
       colnames(tableR)[colnames(tableR) == 'answers'] <- "Respuesta acordada"
       colnames(tableR)[colnames(tableR) == 'agreement'] <- "Acuerdo alcanzado"
-      #tableR <- tableR[,c(1,(length(tableR)-2):length(tableR),2:(length(tableR)-3))]
+      tableR <- tableR[,c(1,(length(tableR)-2):length(tableR),2:(length(tableR)-3))]
       
       #tableR <- merge(tableR,articlesToValidate[,-3],by="position")
       DT::datatable(tableR,extensions = 'Buttons', selection = 'single',rownames = FALSE,
@@ -1094,7 +1107,7 @@ server <- function(input, output, session) {
       aux <- expertsValidations
       aux$questions <- as.factor(aux$questions)
       levels(aux$questions) <- c("200","111","112","121","122")
-      aux$questions <- recode(aux$questions, "112"= "V-V-F","111"="V-V-V","122"="V-F-F","121"="VFV","200"="F")
+      aux$questions <- recode(aux$questions, "112"= "Sí-Sí-No","111"="Sí-Sí-Sí","122"="Sí-No-No","121"="Sí-No-Sí","200"="No")
       colnames(aux)[colnames(aux) == 'questions'] <- "Respuestas"
     }
     else{
@@ -1253,11 +1266,11 @@ server <- function(input, output, session) {
         cols <- c(2:(colIndex-1))
         for (j in cols){
           for(i in 1:nrow(tableR)){
-            tableR[i,j] <- ifelse(tableR[i,j] == 200,"F",
-                                  ifelse(tableR[i,j] == 111,"V-V-V",
-                                         ifelse(tableR[i,j] == 112,"V-V-F",
-                                                ifelse(tableR[i,j] == 121,"V-F-V",
-                                                       ifelse(tableR[i,j] == 122, "V-F-F","Sin acuerdo")))))
+            tableR[i,j] <- ifelse(tableR[i,j] == 200,"No",
+                                  ifelse(tableR[i,j] == 111,"Sí-Sí-Sí",
+                                         ifelse(tableR[i,j] == 112,"Sí-Sí-No",
+                                                ifelse(tableR[i,j] == 121,"Sí-No-Sí",
+                                                       ifelse(tableR[i,j] == 122, "Sí-No-No","Sin acuerdo")))))
           }
         }
         
@@ -1267,9 +1280,9 @@ server <- function(input, output, session) {
         answers <- filesAdmin$agreem$agreedAnswer
         n <- 1
         for(val in filesAdmin$agreem$agreedAnswer){
-          answers[n] <- ifelse(val == 200,"F",ifelse(val == 111,"V-V-V",
-                                                     ifelse(val == 112,"V-V-F",ifelse(val == 121,"V-F-V",
-                                                                                      ifelse(val == 122, "V-F-F","Sin acuerdo")))))
+          answers[n] <- ifelse(val == 200,"No",ifelse(val == 111,"Sí-Sí-Sí",
+                                                     ifelse(val == 112,"Sí-Sí-No",ifelse(val == 121,"Sí-No-Sí",
+                                                                                      ifelse(val == 122, "Sí-No-No","Sin acuerdo")))))
           n <- n+1
         }
         tableR <- cbind(tableR,answers)

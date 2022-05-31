@@ -1,1 +1,2 @@
 load("/Users/solci/shinyapp/summariesApp/data/outputs/validations-1.rds")
+load("/Users/solci/shinyapp/summariesApp/data/outputs/articlesValidate-1.rds")
