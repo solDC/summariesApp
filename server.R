@@ -432,10 +432,10 @@ server <- function(input, output, session) {
                         p(strong("Pregunta 3: "),"El resumen, ¿contiene alguna información que no puede ser inferida del artículo? Sí/No"),
                     )),
                   fluidRow(
-                    box(width = 12, title= "Principales indicadores",solidHeader = TRUE, status="primary",
+                    box(width = 12, title= "Indicadores de acuerdo",solidHeader = TRUE, status="primary",
                       infoBoxOutput("agreementBox"),
-                      infoBoxOutput("validatedBox"),
-                      infoBoxOutput("pendingBox")
+                      infoBoxOutput("validatedBoxAgreem"),
+                      infoBoxOutput("pendingBoxAgreem")
                   )),
                   fluidRow(
                     box(title= "Respuestas de los usuarios por resumen",width = 12, status = "primary", solidHeader = TRUE,
@@ -444,8 +444,14 @@ server <- function(input, output, session) {
                         dataTableOutput("atv"))
                   ),#fluidRow
                   fluidRow(
+                    box(width = 12, title= "Otros indicadores",solidHeader = TRUE, status="primary",
+                        infoBoxOutput("userParticipation"),
+                        infoBoxOutput("validatedBox"),
+                        infoBoxOutput("pendingBox")
+                    )),
+                  fluidRow(
                     box(width=12, title="Número de validaciones por usuario y tipo de respuesta",solidHeader = TRUE, status="primary",
-                        box(width=6, title = "Número y tipo de respuestas por usuario",
+                        box(width=6, title = "Tipo de respuestas por usuario",
                             plotOutput("countUsersAnswersPlot")),
                         box(width=6, title = "Número de validaciones por tipo de respuesta",
                             plotOutput("countTypeAnswerPlot"))
@@ -537,17 +543,17 @@ server <- function(input, output, session) {
                         textInput("pswInputChg", label = "Ingrese la nueva contraseña", value = ""),
                         actionButton("changePswUser", label= "Modificar",class="")
                     ), #box
-                    box(width = 4, title = "Modificar tipo de usuario",solidHeader = TRUE,status = "primary",
-                        selectInput("usernameInputChgType", label = "Seleccione el usuario cuyos permisos quiera modificar",
+                    box(width = 4, title = "Modificar perfil",solidHeader = TRUE,status = "primary",
+                        selectInput("usernameInputChgType", label = "Seleccione el usuario cuyo perfil quiere modificar",
                                     choices = sort(credentials$username_id)),
-                        selectInput("typeUserInputChgType", label = "Seleccione el nuevo tipo de usuario",
+                        selectInput("typeUserInputChgType", label = "Seleccione el nuevo perfil",
                                     choices = list("expert", "admin")),
                         actionButton("changeTypeUser", label= "Modificar",class="")
                     ) #box
                   ), #fluidRow
                   fluidRow(
                     box(width = 12, title = "Listado de usuarios",solidHeader = TRUE,status = "primary",
-                        checkboxGroupInput("cgTypeUser", label = "Filtrar por tipo de usuario",
+                        checkboxGroupInput("cgTypeUser", label = "Filtrar por perfil",
                                            choices = list("expert", "admin"),
                                            selected = c("expert")),
                         dataTableOutput("tableUsers"))
@@ -566,15 +572,14 @@ server <- function(input, output, session) {
                       selectInput("selectInputFile", label = "Seleccione el fichero que quiera descargar", 
                                   choices = list.files(inputDir), 
                                   selected = 1),
-                      downloadButton("downloadInputFile",label = "Descargar")
-                  )),
-                  fluidRow(box(width = 6, title = "Ficheros de entrada a la app (inputs)",solidHeader = TRUE,status = "primary",
+                      downloadButton("downloadInputFile",label = "Descargar")),
+                    box(width = 6, title = "Ficheros de entrada a la app (inputs)",solidHeader = TRUE,status = "primary",
                       selectInput("selectOutputFile", label = "Seleccione el fichero que quiera descargar", 
                                   choices = list.files(outputDir), 
                                   selected = 1),
-                      downloadButton("downloadOutputFile",label = "Descargar")
-                  )),
-                  box(width = 6, title = "Guardar workspace actual",solidHeader = TRUE,status = "primary",
+                      downloadButton("downloadOutputFile",label = "Descargar"))
+                  ),
+                  fluidRow(box(width = 6, title = "Guardar workspace actual",solidHeader = TRUE,status = "primary",
                       #actionButton("saveImage", label = "Guardar")
                       actionButton("saveImage", span("Guardar Imagen en disco", id="UpdateAnimateSaveImage", class="")),
                       #####
@@ -609,7 +614,7 @@ server <- function(input, output, session) {
             @keyframes spin10 { to { transform: translateY(-15.0em); } }
             ')),
                   ) #box
-          ) #tabItem
+          )) #fluidRow y tabItem
         )#tabItems
       } #fin if cuando el usuario es el administrador
     }
@@ -1025,7 +1030,7 @@ server <- function(input, output, session) {
     )
   })
   
-  output$validatedBox <- renderInfoBox({
+  output$validatedBoxAgreem <- renderInfoBox({
     rv$newExp
     invalidateLater(10000,session)
     infoBox(
@@ -1036,7 +1041,7 @@ server <- function(input, output, session) {
     )
   })
   
-  output$pendingBox <- renderInfoBox({
+  output$pendingBoxAgreem <- renderInfoBox({
     rv$newExp
     invalidateLater(10000,session)
     infoBox(
@@ -1083,7 +1088,7 @@ server <- function(input, output, session) {
       
       #tableR <- merge(tableR,articlesToValidate[,-3],by="position")
       DT::datatable(tableR,extensions = 'Buttons', selection = 'single',rownames = FALSE,
-                    options = list(scrollX=TRUE, searching = FALSE, paging = TRUE, pageLength=10,
+                    options = list(scrollX=TRUE, searching = TRUE, paging = TRUE, pageLength=10,
                                    dom = 'Bfrtip', buttons= c('copy', 'csv', 'excel')),
                     class = "display")
     }
@@ -1099,6 +1104,39 @@ server <- function(input, output, session) {
       aux$URL <- paste0('<a  target=_blank href=', aux$URL, '>', substr(aux$URL,13,limit),'</a>' ) 
       DT::datatable(aux,rownames = FALSE,escape=FALSE,options = list(autoWidth = TRUE, scrollX=TRUE, searching = TRUE, paging = TRUE,pageLength=5))
     }
+  })
+  
+  output$userParticipation <- renderInfoBox({
+    rv$newExp
+    invalidateLater(10000,session)
+    infoBox(
+      "Usuarios participantes",
+      count(expertsValidations %>% distinct(username_id)), 
+      icon = icon("fal fa-user",verify_fa = FALSE),
+      color = "purple"
+    )
+  })
+  
+  output$validatedBox <- renderInfoBox({
+    rv$newExp
+    invalidateLater(10000,session)
+    infoBox(
+      "Total de validaciones",
+      nrow(expertsValidations),
+      icon = icon("fal fa-check",verify_fa = FALSE),   
+      color = "olive"
+    )
+  })
+  
+  output$pendingBox <- renderInfoBox({
+    rv$newExp
+    invalidateLater(10000,session)
+    infoBox(
+      "Resúmenes sin validar",
+      sampleSize()-count(expertsValidations %>% distinct(position)),
+      icon = icon("fal fa-edit",verify_fa = FALSE), 
+      color = "maroon"
+    )
   })
   
   auxData <- reactive({
@@ -1293,7 +1331,7 @@ server <- function(input, output, session) {
         tableR <- tableR[,c(1,(length(tableR)-2):length(tableR),2:(length(tableR)-3))]
         
         DT::datatable(tableR,selection = 'single',rownames = FALSE,
-                      options = list(autoWidth = TRUE, scrollX=TRUE, searching = FALSE, paging = TRUE))
+                      options = list(autoWidth = TRUE, scrollX=TRUE, searching = TRUE, paging = TRUE))
       }
     }
   })
@@ -1359,8 +1397,8 @@ server <- function(input, output, session) {
   output$tableUsers <-  DT::renderDataTable({
     rv$cred
     data <- credentials %>% select(username_id,permission,lastLogin) %>% filter(permission %in% input$cgTypeUser)
-    colnames(data) <- c("Nombre de usuario","Tipo de usuario","Último login")
-    datatable(data, rownames = FALSE, options = list(autoWidth = FALSE,searching = FALSE))
+    colnames(data) <- c("Nombre de usuario","Perfil","Último login")
+    datatable(data, rownames = FALSE, options = list(autoWidth = FALSE,searching = TRUE))
   })
   
   #####
@@ -1418,15 +1456,15 @@ server <- function(input, output, session) {
         #print("entro a if cambio tipo usuario")
         credentials["permission"][which(credentials$username_id==input$usernameInputChgType),] <<- newType
         rv$cred <<- rv$cred + 1
-        shinyalert(title="El tipo de usuario guardados",
+        shinyalert(title="Perfil modificado",
                    text="El usuario deberá salir de la sesión para que los cambios se actualicen",closeOnClickOutside = TRUE,type="success")
       }
       else{
-        shinyalert(title="Introduzca un tipo de usuario diferente para continuar",closeOnClickOutside = TRUE,type="error")
+        shinyalert(title="Introduzca un perfil de usuario diferente para continuar",closeOnClickOutside = TRUE,type="error")
       }
     }
     else{
-      shinyalert(title="No se pueden realizar modificaciones en el tipo de usuario mientras hay un experimento de validación activo", 
+      shinyalert(title="No se pueden realizar modificaciones en el perfil del usuario mientras hay un experimento de validación activo", 
                  closeOnClickOutside = TRUE, type="error")
     }
   })
