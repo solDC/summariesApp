@@ -48,7 +48,7 @@ server <- function(input, output, session) {
     rv$cred
     
     aux <- credentials %>% filter(permission == "expert")
-    #message(paste0("numExperts: "),nrow(aux))
+    message(paste0("numExperts actualizado: "),nrow(aux))
     nrow(aux)
   })
   
@@ -93,7 +93,7 @@ server <- function(input, output, session) {
   
   observe({
     rv$cred
-    print("Observe Login")
+
     if (USER$login == FALSE) {
       if (!is.null(input$login)) {
         if (input$login > 0) {
@@ -176,7 +176,7 @@ server <- function(input, output, session) {
       # Save last user access
       credentials["lastLogin"][which(credentials$username_id==USER$name),] <<- format(Sys.Date(),origin="1970-01-01")
       
-      print(typeUser())
+      #print(typeUser())
       if(typeUser() == "expert"){
         if(conf$init[nrow(conf)] == 0){
           shinyalert(title="Experimento no iniciado. Puede salir de la aplicación.", closeOnClickOutside = TRUE, type="info")
@@ -186,7 +186,7 @@ server <- function(input, output, session) {
           # If there's agreement in certain summaries-articles, there's no need of validating them any more
           if(!is.null(agreements)){
             posDiscard <- agreements %>% filter(agreemPerc >= conf$minLevelAgreem[nrow(conf)]) %>%  select(position)
-            print(posDiscard$position)
+            #print(posDiscard$position)
             validations$pending <- subset(validations$pending,!(position %in% posDiscard$position))
           }
           #print(paste0("numero filas validations$pending despues de descartar posibles acuerdos en login: ",nrow(validations$pending)))
@@ -210,19 +210,19 @@ server <- function(input, output, session) {
         }  
       }
       else{ #admin
-        print("entra en oberse button login admin")
+        #print("entra en oberse button login admin")
         if(!is.na(conf$pendingAgreem[nrow(conf)])){
           if ((agreemExists == 1) && (conf$init[nrow(conf)]==1) && (conf$pendingAgreem[nrow(conf)] == 0)){
             shinyalert(title = "Puede finalizar el experimento",
                        text ="Los expertos han validado todos los resúmenes", closeOnClickOutside = TRUE, type="info")
           }
-          print("sale if qeu creia daba error")
+          #print("sale if qeu creia daba error")
         }
         
-        print(paste0("imprime numero filas conf :",nrow(conf)))
+        #print(paste0("imprime numero filas conf :",nrow(conf)))
         if(nrow(conf) > 1){
           rv$listExp <<- conf$id[1:(nrow(conf)-1)]
-          print(rv$listExp)
+          #print(rv$listExp)
         }
       }
     }#if login true
@@ -234,8 +234,17 @@ server <- function(input, output, session) {
         #validations$flag
         tabItems(
           tabItem(tabName = "information",
-                  h4("Acá voy a poner un texto donde se explica el objetivo de la herramienta, el dataset utilizado y el problema con el resumen objectivo del dataset que
-                         a veces viene con datos que no se pueden inferir del texto y no sé si hace falta algo más.")
+                  h2("Herramienta para validar resúmenes creados automáticamente"),
+                  br(),
+                  p("El objetivo de esta herramienta es ",strong("validar resúmenes generados automáticamente"), "por un modelo que adapta al español 
+                    técnicas de aprendizaje profundo basadas en Transformers. "),
+                  br(),
+                  p(strong("El trabajo de validación consta en leer la noticia y luego el resumen que ha generado el modelo. A continuación, 
+                         deberá contestar un máximo de 3 preguntas")," las cuales podrá contestar con un Sí o con un No. "),
+                  br(),
+                  p(strong("Para enviar sus respuestas, "),"deberá guarda la validación haciendo ",strong("click en el botón <<Guardar Validación>>")),
+                  br(),br(),
+                  img(src = "./www/pasosValidacion.png"),
           ),
           tabItem(tabName = "validate", class = "active",
                   fluidRow(
@@ -697,7 +706,7 @@ server <- function(input, output, session) {
       validation$date <- format(Sys.Date(),origin="1970-01-01")
       validation$articleTitle <- input$selectTitle
       validation$questions  <- as.integer(validation$question1)*100+as.integer(validation$question2)*10+as.integer(validation$question3)
-      print(validation)
+      #print(validation)
       #####
       
       # Add validation to expertsValidations global dataframe
@@ -1057,8 +1066,10 @@ server <- function(input, output, session) {
     invalidateLater(30000,session)
     if(agreemExists == 1){ 
       colIndex <- which(colnames(agreements)=="numResp")
+      print(paste0("colIndex: ",colIndex))
       tableR <- agreements[1:colIndex]
       cols <- c(2:(colIndex-1))
+      print(paste0("cols: ",cols))
       for (j in cols){
         for(i in 1:nrow(tableR)){
           tableR[i,j] <- ifelse(tableR[i,j] == 200,"No",
@@ -1299,9 +1310,11 @@ server <- function(input, output, session) {
       if(!is.null(filesAdmin$agreem)){
         print("Pinta la tabla admin")
         colIndex <- which(colnames(filesAdmin$agreem)=="numResp")
+        print(paste0("colIndex: ",colIndex))
         tableR <- filesAdmin$agreem[1:colIndex]
         
         cols <- c(2:(colIndex-1))
+        print(paste0("cols: ",cols))
         for (j in cols){
           for(i in 1:nrow(tableR)){
             tableR[i,j] <- ifelse(tableR[i,j] == 200,"No",
@@ -1328,7 +1341,7 @@ server <- function(input, output, session) {
         colnames(tableR)[colnames(tableR) == 'numResp'] <- "Número respuestas"
         colnames(tableR)[colnames(tableR) == 'answers'] <- "Respuesta acordada"
         colnames(tableR)[colnames(tableR) == 'agreement'] <- "Acuerdo alcanzado"
-        tableR <- tableR[,c(1,(length(tableR)-2):length(tableR),2:(length(tableR)-3))]
+        #tableR <- tableR[,c(1,(length(tableR)-2):length(tableR),2:(length(tableR)-3))]
         
         DT::datatable(tableR,selection = 'single',rownames = FALSE,
                       options = list(autoWidth = TRUE, scrollX=TRUE, searching = TRUE, paging = TRUE))
@@ -1403,6 +1416,9 @@ server <- function(input, output, session) {
   
   #####
   observeEvent(input$saveNewUser,{
+    rv$cred
+    req(numExperts)
+    
     shinyjs::disable("saveNewUser")
     if(input$usernameInput %in% credentials$username_id){
       shinyalert(title="Nombre de usuario repetido, elija otro",closeOnClickOutside = TRUE,type="error")
@@ -1416,12 +1432,13 @@ server <- function(input, output, session) {
         newUser$permission <- input$typeUserInput
         newUser$lastLogin <- NA
         credentials <<- rbind(credentials,newUser)
-        # print(paste0("Nueov usuario agregado",credentials$username_id))
-        # print(credentials)
-        
+        rv$cred <<- rv$cred + 1
+        message(paste0("Nuevo usuario agregado",credentials$username_id[nrow(credentials)]))
+
         # Add new user to agreements table if exists and only if new user is an expert
         if((agreemExists == 1) && (newUser$permission == "expert")){
           newColUser <- rep(NA,sampleSize())
+          print(paste0("Numexperts+1: ",numExperts()+1))
           agreements <<- add_column(agreements,newColUser,.after = numExperts()+1) #library(tibble)
           agreements[numExperts()+2] <<- agreements[numExperts()+1]
           agreements[numExperts()+1] <<- rep(NA,sampleSize())
@@ -1443,7 +1460,6 @@ server <- function(input, output, session) {
     updateSelectInput(session,"usernameInputChgType",choices=sort(credentials$username_id))
     updateTextInput(session, "usernameInput",value="")
     updateTextInput(session, "pswInput",value="")
-    rv$cred <<- rv$cred + 1
     shinyjs::enable("saveNewUser")
   })
   
