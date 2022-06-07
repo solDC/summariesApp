@@ -5,10 +5,10 @@ account: sol
 server: rstudio-connect.nlp.linkeddata.es
 hostUrl: https://rstudio-connect.nlp.linkeddata.es/__api__
 appId: 3
-bundleId: 63
+bundleId: 64
 url: https://rstudio-connect.nlp.linkeddata.es/content/964057f1-fd84-47c6-b945-d40761e6863d/
-when: 1654119324.8114
-lastSyncTime: 1654119324.81141
+when: 1654597275.22983
+lastSyncTime: 1654597275.22984
 asMultiple: FALSE
 asStatic: FALSE
 ignoredFiles: .RData|README.md
