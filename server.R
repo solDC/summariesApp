@@ -1033,7 +1033,7 @@ server <- function(input, output, session) {
   
   output$agreementBox <- renderInfoBox({
     rv$newExp
-    invalidateLater(10000,session)
+    invalidateLater(30000,session)
     infoBox(
       "Alpha Krippendorff",
       conf$kripp[nrow(conf)], 
@@ -1044,7 +1044,7 @@ server <- function(input, output, session) {
   
   output$validatedBoxAgreem <- renderInfoBox({
     rv$newExp
-    invalidateLater(10000,session)
+    invalidateLater(30000,session)
     infoBox(
       "Validados con acuerdo",
       conf$validAgreem[nrow(conf)],
@@ -1055,7 +1055,7 @@ server <- function(input, output, session) {
   
   output$pendingBoxAgreem <- renderInfoBox({
     rv$newExp
-    invalidateLater(10000,session)
+    invalidateLater(30000,session)
     infoBox(
       "Pendientes de acuerdo",
       conf$pendingAgreem[nrow(conf)],
@@ -1069,10 +1069,10 @@ server <- function(input, output, session) {
     invalidateLater(30000,session)
     if(agreemExists == 1){ 
       colIndex <- which(colnames(agreements)=="numResp")
-      print(paste0("colIndex: ",colIndex))
+      #print(paste0("colIndex: ",colIndex))
       tableR <- agreements[1:colIndex]
       cols <- c(2:(colIndex-1))
-      print(paste0("cols: ",cols))
+      #print(paste0("cols: ",cols))
       for (j in cols){
         for(i in 1:nrow(tableR)){
           tableR[i,j] <- ifelse(tableR[i,j] == 200,"No",
@@ -1110,7 +1110,7 @@ server <- function(input, output, session) {
   
   output$atv <- DT::renderDataTable({
     rv$newExp
-    invalidateLater(10000,session)
+    invalidateLater(30000,session)
     if(articlesToValidateExists == 1){
       aux <- articlesToValidate[,c(4,2,5,1)]
       colnames(aux) <- c("Id","Título","Resumen","URL")
@@ -1122,10 +1122,10 @@ server <- function(input, output, session) {
   
   output$userParticipation <- renderInfoBox({
     rv$newExp
-    invalidateLater(10000,session)
+    invalidateLater(30000,session)
     infoBox(
       "Usuarios participantes",
-      count(expertsValidations %>% distinct(username_id)), 
+      ifelse(!is.null(expertsValidations),count(expertsValidations %>% distinct(username_id)),""), 
       icon = icon("fal fa-user",verify_fa = FALSE),
       color = "purple"
     )
@@ -1133,7 +1133,7 @@ server <- function(input, output, session) {
   
   output$validatedBox <- renderInfoBox({
     rv$newExp
-    invalidateLater(10000,session)
+    invalidateLater(30000,session)
     infoBox(
       "Total de validaciones",
       nrow(expertsValidations),
@@ -1144,10 +1144,10 @@ server <- function(input, output, session) {
   
   output$pendingBox <- renderInfoBox({
     rv$newExp
-    invalidateLater(10000,session)
+    invalidateLater(30000,session)
     infoBox(
       "Resúmenes sin validar",
-      sampleSize()-count(expertsValidations %>% distinct(position)),
+      ifelse(!is.null(expertsValidations),sampleSize()-count(expertsValidations %>% distinct(position)),""),
       icon = icon("fal fa-edit",verify_fa = FALSE), 
       color = "maroon"
     )
@@ -1157,9 +1157,18 @@ server <- function(input, output, session) {
     rv$newExp
     if(!is.null(expertsValidations)){
       aux <- expertsValidations
-      aux$questions <- as.factor(aux$questions)
-      levels(aux$questions) <- c("200","111","112","121","122")
-      aux$questions <- recode(aux$questions, "112"= "Sí-Sí-No","111"="Sí-Sí-Sí","122"="Sí-No-No","121"="Sí-No-Sí","200"="No")
+      print(aux)
+      n <- 1
+      for(val in aux$questions){
+        aux$questions[n] <- ifelse(val == 200,"No",ifelse(val == 111,"Sí-Sí-Sí",
+                                                    ifelse(val == 112,"Sí-Sí-No",ifelse(val == 121,"Sí-No-Sí",
+                                                                                        ifelse(val == 122, "Sí-No-No","")))))
+        n <- n+1
+      }
+      #aux$questions <- as.factor(aux$questions)
+      #levels(aux$questions) <- c("200","111","112","121","122")
+      #aux$questions <- recode(aux$questions, "200"="No","111"="Sí-Sí-Sí","112"= "Sí-Sí-No","121"="Sí-No-Sí","122"="Sí-No-No")
+      print(aux$questions)
       colnames(aux)[colnames(aux) == 'questions'] <- "Respuestas"
     }
     else{
@@ -1311,13 +1320,13 @@ server <- function(input, output, session) {
     if((filesAdmin$index != 0) && (conf$init[filesAdmin$index] != 0)){
       filesAdmin$agreem <- readRDS(file.path(outputDir,paste0("agreements-",conf$id[filesAdmin$index],".rds")))
       if(!is.null(filesAdmin$agreem)){
-        print("Pinta la tabla admin")
+        #print("Pinta la tabla admin")
         colIndex <- which(colnames(filesAdmin$agreem)=="numResp")
-        print(paste0("colIndex: ",colIndex))
+        #print(paste0("colIndex: ",colIndex))
         tableR <- filesAdmin$agreem[1:colIndex]
         
         cols <- c(2:(colIndex-1))
-        print(paste0("cols: ",cols))
+        #print(paste0("cols: ",cols))
         for (j in cols){
           for(i in 1:nrow(tableR)){
             tableR[i,j] <- ifelse(tableR[i,j] == 200,"No",
@@ -1344,7 +1353,7 @@ server <- function(input, output, session) {
         colnames(tableR)[colnames(tableR) == 'numResp'] <- "Número respuestas"
         colnames(tableR)[colnames(tableR) == 'answers'] <- "Respuesta acordada"
         colnames(tableR)[colnames(tableR) == 'agreement'] <- "Acuerdo alcanzado"
-        #tableR <- tableR[,c(1,(length(tableR)-2):length(tableR),2:(length(tableR)-3))]
+        tableR <- tableR[,c(1,(length(tableR)-2):length(tableR),2:(length(tableR)-3))]
         
         DT::datatable(tableR,selection = 'single',rownames = FALSE,
                       options = list(autoWidth = TRUE, scrollX=TRUE, searching = TRUE, paging = TRUE))
@@ -1358,6 +1367,7 @@ server <- function(input, output, session) {
     filePathATV <- file.path(outputDir,paste0("articlesValidate-",filesAdmin$index,".rds"))
     if(file.exists(filePathAV)){
       dataATV <-  readRDS(filePathAV)
+      print("Lee dataATV-Prev")
     }else{
       dataATV <- NULL
     }
@@ -1451,6 +1461,7 @@ server <- function(input, output, session) {
           nc<-numCols(numExperts())
           colN <- rep("P",nc)
           colnames(agreements)[(length(agreements)-nc+1):length(agreements)] <<- paste0(colN,c(1:nc))
+          print(agreements)
         }
         shinyalert(title="Nuevo usuario creado",closeOnClickOutside = TRUE,type="success")
       }
