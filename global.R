@@ -41,7 +41,7 @@ if( !is.null(conf)){
 }
 
 filePathAV <- file.path(outputDir,paste0("articlesValidate-",conf$id[nrow(conf)],".rds"))
-print(filePathAV)
+#print(filePathAV)
 if(file.exists(filePathAV)){
   articlesToValidate <- readRDS(filePathAV)
   articlesToValidateExists <- 1
@@ -54,7 +54,7 @@ if(file.exists(filePathAV)){
 }
 
 filePathAg <- file.path(outputDir,paste0("agreements-",conf$id[nrow(conf)],".rds"))
-print(filePathAg)
+#print(filePathAg)
 if(file.exists(filePathAg)){
   agreements <- readRDS(filePathAg)
   agreemExists <- 1
@@ -65,7 +65,7 @@ if(file.exists(filePathAg)){
 }
 
 filePathEV <- file.path(outputDir,paste0("validations-",conf$id[nrow(conf)],".rds"))
-print(filePathEV)
+#print(filePathEV)
 if(file.exists(filePathEV)){
   expertsValidations <- readRDS(file=filePathEV)
   expValidExists <- 1

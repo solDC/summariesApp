@@ -1355,8 +1355,8 @@ server <- function(input, output, session) {
         colnames(tableR)[colnames(tableR) == 'agreement'] <- "Acuerdo alcanzado"
         tableR <- tableR[,c(1,(length(tableR)-2):length(tableR),2:(length(tableR)-3))]
         
-        DT::datatable(tableR,selection = 'single',rownames = FALSE,
-                      options = list(autoWidth = TRUE, scrollX=TRUE, searching = TRUE, paging = TRUE))
+         DT::datatable(tableR,selection = 'single',rownames = FALSE,
+                       options = list(autoWidth = TRUE, scrollX=TRUE, searching = TRUE, paging = TRUE))
       }
     }
   })
@@ -1364,20 +1364,25 @@ server <- function(input, output, session) {
   observe({
     req(input$resultsPrev_rows_selected)
     
-    filePathATV <- file.path(outputDir,paste0("articlesValidate-",filesAdmin$index,".rds"))
-    if(file.exists(filePathAV)){
-      dataATV <-  readRDS(filePathAV)
-      print("Lee dataATV-Prev")
-    }else{
+    print("Entra en observe selectedRows")
+    print(filesAdmin$index)
+    filePathATV <- paste0(outputDir,"articlesValidate-",filesAdmin$index,".rds")
+    print(filePathATV)
+    if(file.exists(filePathATV)){
+      dataATV <-  readRDS(file=filePathATV)
+      # print("Lee dataATV-Prev")
+    }
+    else{
       dataATV <- NULL
+      print("No existe file")
     }
 
     output$atvSelected <- DT::renderDataTable({
       if(!is.null(dataATV)){
         colnames(dataATV) <- c("URL","Título","Texto","Id","Resumen")
         dataATV <- dataATV[,c(4,2,3,5,1)]
-        limit <- min(nchar(dataATV$URL))
-        dataATV$URL <- paste0('<a  target=_blank href=', dataATV$URL, '>', substr(dataATV$URL,13,limit),'</a>' ) 
+        
+        #dataATV$URL <- paste0('<a href="',dataATV$URL,'" target="_blank">',"Ir a la noticia","</a>") 
         DT::datatable(dataATV[input$resultsPrev_rows_selected, -c(3)], selection = 'single',rownames = FALSE,
                     options = list(autoWidth = TRUE, scrollX=TRUE))
       }
